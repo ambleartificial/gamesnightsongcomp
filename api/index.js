@@ -127,6 +127,19 @@ app.post('/api/song', auth, h(async (req, res) => {
   res.json({ ok: true });
 }));
 
+app.post('/api/song/delete', auth, h(async (req, res) => {
+  const r = await cur();
+  if (!r || r.phase !== 'submit') return err(res, 'Can only delete during submissions');
+  const song = await one('SELECT * FROM songs WHERE round_id=$1 AND user_id=$2', [r.id, req.body.userId || req.user.id]);
+  if (!song) return err(res, 'No song found');
+  const isOwner = song.user_id === req.user.id;
+  const isPartner = (await partnerOf(r.id, song.user_id)) === req.user.id;
+  if (!req.user.is_admin && !isOwner && !isPartner) return err(res, 'Not allowed', 403);
+  await q('DELETE FROM songs WHERE id=$1', [song.id]);
+  if (song.url) del(song.url).catch(() => {});
+  res.json({ ok: true });
+}));
+
 app.get('/audio/:id', auth, h(async (req, res) => {
   const s = await one('SELECT * FROM songs WHERE id=$1', [+req.params.id]);
   if (!s) return err(res, 'Not found', 404);
