@@ -106,7 +106,6 @@ function adminHtml(){
         <select id="pb"><option value="">Solo</option>${A.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("")}</select>
         <button class="alt" id="pair">Pair them</button>
       </div>
-      <button class="alt" data-shuffle="1" style="margin-top:10px">🎲 Shuffle duos</button>
       <button class="alt" id="clear" style="margin-top:6px">Clear all duos</button>`;
     }
     h+=`</div>`;
@@ -134,7 +133,6 @@ document.addEventListener("click",e=>{
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
   else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
   else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
-  else if(b.dataset.shuffle)act(()=>api("/api/admin/shuffle",{}));
   else if(b.id==="pair")act(async()=>{
     const a=+document.getElementById("pa").value, b=document.getElementById("pb").value;
     if(!a)throw new Error("Select a first player");
