@@ -287,8 +287,6 @@ app.post('/api/admin/duo', auth, adminOnly, h(async (req, res) => {
   const r = await cur(), a = +req.body?.a, b = req.body?.b ? +req.body.b : null;
   if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
   if (!a || a === b) return err(res, 'Pick two different players');
-  const act = new Set((await q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id])).map(x => x.user_id));
-  if (!act.has(a) || (b && !act.has(b))) return err(res, 'Both players must be ticked as playing');
   if (await one('SELECT 1 x FROM duos WHERE round_id=$1 AND (a=$2 OR b=$2 OR a=$3 OR b=$3)', [r.id, a, b || 0])) return err(res, 'One of them is already in a duo');
   const maxOrd = await one('SELECT COALESCE(MAX(ord),-1)+1 o FROM duos WHERE round_id=$1', [r.id]);
   await q('INSERT INTO duos(round_id,a,b,ord) VALUES($1,$2,$3,$4)', [r.id, a, b, maxOrd.o]);
