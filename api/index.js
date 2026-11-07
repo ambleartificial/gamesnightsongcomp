@@ -2,16 +2,7 @@ const express = require('express'), { neon } = require('@neondatabase/serverless
   crypto = require('crypto'), { handleUpload } = require('@vercel/blob/client'), { del } = require('@vercel/blob');
 
 const sql = neon(process.env.DATABASE_URL);
-const sleep = ms => new Promise(r => setTimeout(r, ms));
-const q = async (t, p = []) => {
-  for (let i = 0; i < 3; i++) {
-    try { return await sql.query(t, p); }
-    catch (e) {
-      if (i === 2 || !/fetch failed|other side closed/i.test(e.message + (e.cause?.message || ''))) throw e;
-      await sleep(500 * (i + 1));
-    }
-  }
-};
+const q = (t, p = []) => sql.query(t, p);
 const one = async (t, p) => (await q(t, p))[0] || null;
 const SECRET = process.env.SECRET || process.env.DATABASE_URL || 'dev';
 
@@ -107,6 +98,7 @@ app.get('/api/state', auth, h(async (req, res) => {
   res.json(out);
 }));
 
+// Browser uploads the mp3 straight to Vercel Blob (avoids the 4.5 MB function limit).
 app.post('/api/upload', h(async (req, res) => {
   try {
     const json = await handleUpload({
@@ -138,6 +130,7 @@ app.post('/api/song', auth, h(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// The file link is only handed out after a phase and permission check.
 app.get('/audio/:id', auth, h(async (req, res) => {
   const s = await one('SELECT * FROM songs WHERE id=$1', [+req.params.id]);
   if (!s) return err(res, 'Not found', 404);
@@ -204,15 +197,83 @@ app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
   }
   res.json({ users, round });
 }));
-
 app.post('/api/admin/user', auth, adminOnly, h(async (req, res) => {
   let { username, name, password, admin } = req.body || {};
   username = String(username || '').trim(); name = String(name || '').trim(); password = String(password || '').trim() || gen();
   if (!/^[a-z0-9_.-]{3,30}$/i.test(username) || !name || name.length > 40) return err(res, 'Username needs 3 to 30 letters or numbers, and a name is required');
+  if (password.length < 8) return err(res, 'Password needs at least 8 characters');
   if (await one('SELECT 1 x FROM users WHERE LOWER(username)=LOWER($1)', [username])) return err(res, 'That username is taken');
   await q('INSERT INTO users(username,name,hash,is_admin) VALUES($1,$2,$3,$4)', [username, name, bcrypt.hashSync(password, 10), admin ? 1 : 0]);
-  res.json({ ok: true, password });
+  res.json({ username, password });
+}));
+app.post('/api/admin/user/:id/password', auth, adminOnly, h(async (req, res) => {
+  const password = String(req.body?.password || '').trim() || gen();
+  if (password.length < 8) return err(res, 'Password needs at least 8 characters');
+  await q('UPDATE users SET hash=$1 WHERE id=$2', [bcrypt.hashSync(password, 10), +req.params.id]);
+  await q('DELETE FROM sessions WHERE user_id=$1', [+req.params.id]);
+  res.json({ password });
+}));
+app.post('/api/admin/player', auth, adminOnly, h(async (req, res) => {
+  const r = await cur(), { userId, active } = req.body || {};
+  if (!r || r.phase !== 'setup') return err(res, 'You can only change players during setup');
+  if (active) await q('INSERT INTO round_players VALUES($1,$2) ON CONFLICT DO NOTHING', [r.id, userId]);
+  else await q('DELETE FROM round_players WHERE round_id=$1 AND user_id=$2', [r.id, userId]);
+  await q('DELETE FROM duos WHERE round_id=$1', [r.id]);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/shuffle', auth, adminOnly, h(async (req, res) => {
+  const r = await cur();
+  if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
+  const ids = (await q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id])).map(x => x.user_id);
+  if (ids.length < 2) return err(res, 'Need at least two players');
+  const past = new Set(); (await q('SELECT a,b FROM duos WHERE b IS NOT NULL')).forEach(d => { past.add(d.a + '-' + d.b); past.add(d.b + '-' + d.a); });
+  let best = null, bs = 1e9;
+  for (let t = 0; t < 300 && bs > 0; t++) {
+    const a = [...ids].sort(() => Math.random() - .5), duos = []; let sc = 0;
+    for (let i = 0; i < a.length; i += 2) { const d = { a: a[i], b: a[i + 1] ?? null }; if (d.b && past.has(d.a + '-' + d.b)) sc++; duos.push(d); }
+    if (sc < bs) { bs = sc; best = duos; }
+  }
+  await q('DELETE FROM duos WHERE round_id=$1', [r.id]);
+  const vals = [], ph = best.map((d, i) => { vals.push(r.id, d.a, d.b); return `($${i * 3 + 1},$${i * 3 + 2},$${i * 3 + 3})`; });
+  await q('INSERT INTO duos VALUES ' + ph.join(','), vals);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/duo', auth, adminOnly, h(async (req, res) => {
+  const r = await cur(), a = +req.body?.a, b = req.body?.b ? +req.body.b : null;
+  if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
+  if (!a || a === b) return err(res, 'Pick two different players');
+  const act = new Set((await q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id])).map(x => x.user_id));
+  if (!act.has(a) || (b && !act.has(b))) return err(res, 'Both players must be ticked as playing');
+  if (await one('SELECT 1 x FROM duos WHERE round_id=$1 AND (a=$2 OR b=$2 OR a=$3 OR b=$3)', [r.id, a, b || 0])) return err(res, 'One of them is already in a duo');
+  await q('INSERT INTO duos VALUES($1,$2,$3)', [r.id, a, b]);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/duos/clear', auth, adminOnly, h(async (req, res) => {
+  const r = await cur();
+  if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
+  await q('DELETE FROM duos WHERE round_id=$1', [r.id]); res.json({ ok: true });
+}));
+app.post('/api/admin/advance', auth, adminOnly, h(async (req, res) => {
+  const r = await cur();
+  const newRound = async from => {
+    const id = (await q('INSERT INTO rounds DEFAULT VALUES RETURNING id'))[0].id;
+    if (from) await q('INSERT INTO round_players SELECT $1::int,user_id FROM round_players WHERE round_id=$2', [id, from]);
+    else await q('INSERT INTO round_players SELECT $1::int,id FROM users', [id]);
+  };
+  if (!r) { await newRound(null); return res.json({ ok: true }); }
+  if (r.phase === 'setup') {
+    const unpaired = await one('SELECT 1 x FROM round_players p WHERE p.round_id=$1 AND NOT EXISTS (SELECT 1 FROM duos d WHERE d.round_id=$1 AND (d.a=p.user_id OR d.b=p.user_id))', [r.id]);
+    if (unpaired || !(await one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]))) return err(res, 'Every player needs a duo first. Pair them up or shuffle.');
+  }
+  if (r.phase === 'submit' && !(await one('SELECT 1 x FROM songs WHERE round_id=$1', [r.id]))) return err(res, 'No songs have been submitted yet');
+  const next = { setup: 'submit', submit: 'voting', voting: 'results' }[r.phase];
+  if (next) await q('UPDATE rounds SET phase=$1 WHERE id=$2', [next, r.id]); else await newRound(r.id);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/back', auth, adminOnly, h(async (req, res) => {
+  const r = await cur(), prev = r && { submit: 'setup', voting: 'submit', results: 'voting' }[r.phase];
+  if (!prev) return err(res, 'Nothing to go back to');
+  await q('UPDATE rounds SET phase=$1 WHERE id=$2', [prev, r.id]); res.json({ ok: true });
 }));
 
-app.post('/api/admin/players', auth, adminOnly, h(async (req, res) => {
-  const r = await cur(); if (!r || r.phase !== 'setup') return err(res, 'Players can only change in setup');
+module.exports = app;
