@@ -135,7 +135,8 @@ function adminHtml(){
     if (!d) return rd.players.find(p => p.id === uid)?.song;
     return rd.players.find(p => p.id === d.ai)?.song || (d.bi && rd.players.find(p => p.id === d.bi)?.song);
   };
-  let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div></div>`;
+  let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div>
+  <div class="row" style="margin-top:10px"><button class="alt" id="preview">🧪 Preview Voting</button> <button class="alt" id="resettest">Clear Test</button></div></div>`;
   if(rd){
     h+=`<div class="card"><h2>Duos</h2>`;
     h+=rd.duos.map((d,idx)=>`<div class="row" style="align-items:center;margin:6px 0">
@@ -228,6 +229,8 @@ document.addEventListener("click",e=>{
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
   else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
   else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
+  else if(b.id==="preview")act(()=>api("/api/admin/preview",{}));
+  else if(b.id==="resettest")act(()=>api("/api/admin/reset-test",{}));
   else if(b.id==="pair")act(async()=>{
     const a=+document.getElementById("pa").value, b=document.getElementById("pb").value;
     if(!a)throw new Error("Select a first player");
