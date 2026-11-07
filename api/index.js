@@ -215,4 +215,4 @@ app.post('/api/admin/user', auth, adminOnly, h(async (req, res) => {
 }));
 
 app.post('/api/admin/players', auth, adminOnly, h(async (req, res) => {
-  const r = await cur(); if (!r || r.phase !== 'setup') return err(res, 'Players can only change in setup
+  const r = await cur(); if (!r || r.phase !== 'setup') return err(res, 'Players can only change in setup');
