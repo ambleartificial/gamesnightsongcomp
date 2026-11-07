@@ -32,6 +32,10 @@ audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tab
 .team .status{font-size:13px;font-weight:700;margin-top:4px}
 .status.yes{color:#16a34a}
 .status.no{color:#dc2626}
+.cropbox{position:fixed;inset:0;background:rgba(0,0,0,.7);display:grid;place-items:center;z-index:99}
+.cropbox .inner{background:var(--card);padding:20px;border-radius:16px;max-width:340px;width:90%}
+.preview{width:120px;height:120px;border-radius:50%;overflow:hidden;margin:0 auto 12px;border:3px solid var(--a1);background:#000}
+.preview img{width:100%;height:100%;object-fit:cover}
 </style></head><body>
 <div class="hero"><h1>🎵 Games Night’s Song Competition</h1><div class="rb" id="rb"></div></div>
 <main><div id="app" class="mu" style="padding-top:44px">Loading…</div></main>
@@ -143,6 +147,29 @@ function adminHtml(){
   h+=`<div class="card"><h2>Add a player</h2>${msg?`<div class="note">${msg}</div>`:""}<input type="text" id="nu" placeholder="Username (login)"><input type="text" id="nn" placeholder="Display name"><input type="text" id="np" placeholder="Password (blank = generate one)"><label class="mu"><input type="checkbox" id="na"> Make admin</label><div style="margin-top:10px"><button id="adduser">Create account</button></div></div>`;
   return h;
 }
+function showCrop(file, userId){
+  const url=URL.createObjectURL(file);
+  const box=document.createElement("div");
+  box.className="cropbox";
+  box.innerHTML=`<div class="inner"><h2>Position photo</h2><div class="preview"><img id="cimg" src="${url}"></div>
+    <label class="mu">Zoom <input type="range" id="zoom" min="1" max="3" step="0.1" value="1"></label>
+    <label class="mu">Move left/right <input type="range" id="mx" min="-50" max="50" value="0"></label>
+    <label class="mu">Move up/down <input type="range" id="my" min="-50" max="50" value="0"></label>
+    <div class="row" style="margin-top:14px"><button id="savecrop">Save</button> <button class="alt" id="cancelcrop">Cancel</button></div></div>`;
+  document.body.appendChild(box);
+  const img=$("#cimg"),z=$("#zoom"),mx=$("#mx"),my=$("#my");
+  const upd=()=>{img.style.transform=`scale(${z.value}) translate(${mx.value}%,${my.value}%)`};
+  z.oninput=mx.oninput=my.oninput=upd;
+  $("#cancelcrop").onclick=()=>{box.remove();URL.revokeObjectURL(url)};
+  $("#savecrop").onclick=async()=>{
+    try{
+      const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
+      const bl=await upload(`avatars/${userId}.jpg`,file,{access:"public",handleUploadUrl:"/api/upload",contentType:file.type});
+      await api("/api/image",{userId:+userId,url:bl.url});
+      box.remove();URL.revokeObjectURL(url);load();
+    }catch(e){alert(e.message||"Upload failed")}
+  };
+}
 document.addEventListener("click",e=>{
   const b=e.target.closest("button");
   if(e.target.closest("#drop")&&e.target.id!=="file"){$("#file").click();return}
@@ -164,15 +191,7 @@ document.addEventListener("click",e=>{
   else if(b.dataset.photo){
     const input=document.createElement("input");
     input.type="file";input.accept="image/*";
-    input.onchange=async()=>{
-      const f=input.files[0];if(!f)return;
-      try{
-        const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
-        const bl=await upload(`avatars/${b.dataset.photo}.jpg`,f,{access:"public",handleUploadUrl:"/api/upload",contentType:f.type});
-        await api("/api/image",{userId:+b.dataset.photo,url:bl.url});
-        load();
-      }catch(err){alert(err.message||"Upload failed")}
-    };
+    input.onchange=()=>{if(input.files[0])showCrop(input.files[0],b.dataset.photo)};
     input.click();
   }
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
