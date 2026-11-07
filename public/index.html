@@ -36,6 +36,11 @@ audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tab
 .cropbox .inner{background:var(--card);padding:20px;border-radius:16px;max-width:340px;width:90%;color:var(--tx)}
 .preview{width:120px;height:120px;border-radius:50%;overflow:hidden;margin:0 auto 12px;border:3px solid var(--a1);background:#000}
 .preview img{width:100%;height:100%;object-fit:cover}
+.duo-color-0{color:#ff5e7e}
+.duo-color-1{color:#ff9a3c}
+.duo-color-2{color:#a78bfa}
+.duo-color-3{color:#34d399}
+.duo-color-4{color:#60a5fa}
 </style></head><body>
 <div class="hero"><h1>🎵 Games Night’s Song Competition</h1><div class="rb" id="rb"></div></div>
 <main><div id="app" class="mu" style="padding-top:44px">Loading…</div></main>
@@ -133,7 +138,7 @@ function adminHtml(){
   if(rd){
     h+=`<div class="card"><h2>Duos</h2>`;
     h+=rd.duos.map((d,idx)=>`<div class="row" style="align-items:center;margin:6px 0">
-      <span style="flex:1">🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"}</span>
+      <span class="duo-color-${idx}" style="flex:1">🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"} <b>(Team ${idx+1})</b></span>
       <button class="alt" data-move="${d.ai}" data-dir="up" style="padding:4px 8px;font-size:12px" ${idx===0?"disabled":""}>↑</button>
       <button class="alt" data-move="${d.ai}" data-dir="down" style="padding:4px 8px;font-size:12px" ${idx===rd.duos.length-1?"disabled":""}>↓</button>
     </div>`).join("") || `<p class="mu">No duos yet.</p>`;
