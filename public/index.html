@@ -24,6 +24,13 @@ input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--bd);border-
 audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
 .lb{display:flex;align-items:center;gap:12px}.rk{font-size:30px;min-width:42px;text-align:center}.lb .t{flex:1}.lb .sc{font-size:26px;font-weight:800;color:var(--a1)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.chips span{font-size:12px;background:var(--soft);border-radius:20px;padding:2px 9px}
+.teams{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin:20px 0}
+.team{text-align:center;min-width:100px}
+.team .circles{display:flex;justify-content:center;gap:6px;margin:6px 0}
+.team .circle{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#ff5e7e,#ff9a3c);display:grid;place-items:center;color:#fff;font-weight:700;font-size:18px;border:3px solid #fff;box-shadow:0 0 0 2px #ff5e7e}
+.team .status{font-size:13px;font-weight:700;margin-top:4px}
+.status.yes{color:#16a34a}
+.status.no{color:#dc2626}
 </style></head><body>
 <div class="hero"><h1>🎵 Games Night’s Song Competition</h1><div class="rb" id="rb"></div></div>
 <main><div id="app" class="mu" style="padding-top:44px">Loading…</div></main>
@@ -65,12 +72,27 @@ function boardHtml(){
   if(bview==="all")return h+R.overall.map((x,i)=>row(i,x.name,x.n+" round"+(x.n>1?"s":"")+" scored",x.tot)).join("")+`<p class="mu">Overall adds up each player’s round scores (50 per round max).</p>`;
   return h+R.rounds.find(r=>r.n===bview).rows.map((x,i)=>row(i,x.title,x.name+(x.partner?" (duo with "+x.partner+")":""),x.tot,x.a)).join("")+`<p class="mu">Individual scores, averaged out of 10 per category. 50 is the max.</p>`;
 }
+function teamsHtml(duos){
+  if(!duos || !duos.length) return "";
+  return `<div class="teams">${duos.map((d,i)=>`
+    <div class="team">
+      <div style="font-weight:800;font-size:14px;margin-bottom:4px">TEAM ${i+1}</div>
+      <div class="circles">
+        <div class="circle">${esc(d.a[0]||"?")}</div>
+        ${d.b?`<div class="circle">${esc(d.b[0]||"?")}</div>`:""}
+      </div>
+      <div style="font-size:12px;margin-top:2px">${esc(d.a)}${d.b?" + "+esc(d.b):""}</div>
+      <div class="status ${d.submitted?"yes":"no"}">${d.submitted?"Submitted":"Not Submitted"}</div>
+    </div>
+  `).join("")}</div>`;
+}
 function render(){
   const app=$("#app"),r=S.round;app.className="";app.style.paddingTop="0";
   $("#rb").textContent=r?`Round ${r.n} · ${PL[r.phase]}`:"";
   let h=`<div class="row" style="justify-content:space-between;margin-top:14px">${view!=="home"?`<button class="alt" data-go="home">← Home</button>`:`<span class="mu">Hi <b>${esc(S.me.name)}</b></span>`}<span><button class="alt" data-go="pw">🔑</button> <button class="alt" id="out">Log out</button></span></div>`;
   if(view==="home"){
     h+=`<div class="card">`;
+    if(r && r.duos) h+=teamsHtml(r.duos);
     if(!r)h+=`<div class="note">${S.me.admin?"No round yet. Open the admin panel to create Round 1.":"The admin hasn’t started the first round yet."}</div>`;
     else{
       if(!r.active)h+=`<div class="note">🛋️ You’re sitting this round out. You can still follow the leaderboard.</div>`;
