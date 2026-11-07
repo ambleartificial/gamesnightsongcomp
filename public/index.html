@@ -97,7 +97,21 @@ function render(){
 function adminHtml(){
   const rd=A.round,i=rd?PH.indexOf(rd.phase):-1,id=u=>rd?.players.find(p=>p.id===u.id)||{};
   let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div></div>`;
-  if(rd)h+=`<div class="card"><h2>Duos</h2>${rd.duos.map(d=>`<div>🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"}</div>`).join("")||`<p class="mu">No duos yet.</p>`}${i<=1?`<button class="alt" data-shuffle="1" style="margin-top:10px">🎲 Shuffle duos</button><p class="mu">Avoids repeating past partners where it can.</p>`:""}</div>`;
+  if(rd)h+=`<div class="card"><h2>Duos</h2>${rd.duos.map(d=>`<div>🤝 ${esc( if(rd){
+    h+=`<div class="card"><h2>Duos</h2>${rd.duos.map(d=>`<div>🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"}</div>`).join("")||`<p class="mu">No duos yet.</p>`}`;
+    if(i<=1){
+      const free = A.users.filter(u => rd.players.find(p=>p.id===u.id)?.active && !rd.duos.some(d=>d.ai===u.id||d.bi===u.id));
+      h+=`<div style="margin-top:14px"><label class="mu">Manual pair</label>
+        <select id="pa">${free.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("")}</select>
+        <select id="pb"><option value="">Solo</option>${free.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("")}</select>
+        <button class="alt" id="pair">Pair them</button>
+      </div>
+      <button class="alt" data-shuffle="1" style="margin-top:10px">🎲 Shuffle duos</button>
+      <button class="alt" id="clear" style="margin-top:6px">Clear all duos</button>
+      <p class="mu">Avoids repeating past partners where it can. Manual pair only shows players who are active and not already paired.</p>`;
+    }
+    h+=`</div>`;
+  }
   h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${p.song?"song ✓":"no song"}</span>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
   h+=`<div class="card"><h2>Add a player</h2>${msg?`<div class="note">${msg}</div>`:""}<input type="text" id="nu" placeholder="Username (login)"><input type="text" id="nn" placeholder="Display name"><input type="text" id="np" placeholder="Password (blank = generate one)"><label class="mu"><input type="checkbox" id="na"> Make admin</label><div style="margin-top:10px"><button id="adduser">Create account</button></div></div>`;
   return h;
