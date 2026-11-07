@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Games Night’s Song Competition</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+:root{--bg:#fff7f0;--card:#fff;--tx:#2a1f2d;--mu:#7d6f80;--a1:#ff5e7e;--a2:#ff9a3c;--bd:#f0e2da;--soft:#fff0e6;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17111c;--card:#241a2b;--tx:#f6eef7;--mu:#a898ac;--bd:#3a2c42;--soft:#2e2236}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:16px/1.5 system-ui,-apple-system,Segoe UI,sans-serif}
+.hero{background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff;padding:34px 18px 54px;text-align:center}
+.hero h1{margin:0;font-size:clamp(24px,6vw,36px);line-height:1.15}.hero .rb{display:inline-block;margin-top:12px;background:rgba(255,255,255,.25);border-radius:30px;padding:4px 14px;font-size:14px;font-weight:600}
+main{max-width:640px;margin:-34px auto 0;padding:0 16px 60px}
+h2{font-size:19px;margin:6px 0 12px}.mu{color:var(--mu);font-size:14px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:18px;margin:14px 0;box-shadow:0 6px 20px rgba(120,60,60,.08)}
+button,input{font:inherit}button{background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff;border:0;border-radius:12px;padding:11px 18px;cursor:pointer;font-weight:600}
+button.alt{background:var(--card);color:var(--tx);border:1px solid var(--bd);box-shadow:none;padding:8px 14px;font-weight:500}button.on{outline:2px solid var(--a1)}button:disabled{opacity:.5}
+.tiles{display:grid;gap:12px}.tile{display:flex;align-items:center;gap:14px;text-align:left;padding:18px;font-size:18px}.tile span{font-size:30px}.tile small{display:block;font-weight:400;opacity:.9;font-size:13px}
+.tile.soft{background:var(--soft);color:var(--tx);border:1px solid var(--bd)}
+input[type=text]{width:100%;padding:11px 13px;border:1px solid var(--bd);border-radius:12px;background:var(--bg);color:var(--tx);margin:4px 0 10px}
+#drop{border:2px dashed var(--a1);border-radius:16px;padding:28px 16px;text-align:center;cursor:pointer;margin:6px 0 12px;background:var(--soft)}#drop.on{background:var(--bd)}
+.note{background:var(--soft);border-left:4px solid var(--a1);border-radius:10px;padding:10px 12px;margin:10px 0;font-size:14px}
+.tag{font-size:12px;background:var(--soft);border:1px solid var(--bd);border-radius:20px;padding:2px 10px;font-weight:600}
+.letter{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--a1),var(--a2));color:#fff;font-weight:700;margin-right:8px}
+.cat{display:flex;flex-wrap:wrap;align-items:center;margin:10px 0 0}.cat label{flex:1;font-size:14px}.cat b{font-size:18px;min-width:26px;text-align:right}.cat input{width:100%;accent-color:var(--a1)}
+audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px}
+.lb{display:flex;align-items:center;gap:12px}.rk{font-size:30px;min-width:42px;text-align:center}.lb .t{flex:1}.lb .sc{font-size:26px;font-weight:800;color:var(--a1)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}.chips span{font-size:12px;background:var(--soft);border-radius:20px;padding:2px 9px}
+</style></head><body>
+<div class="hero"><h1>🎵 Games Night’s Song Competition</h1><div class="rb" id="rb"></div></div>
+<main><div id="app" class="mu" style="padding-top:44px">Loading…</div></main>
+<script>
+const CATS=[["🎤","Vocals"],["🤝","Chemistry"],["💡","Creativity"],["🔥","Playlist worthy"],["✍️","Songwriting"]];
+const PL={setup:"Setting up",submit:"Submissions open",voting:"Voting",results:"Results"},PH=["setup","submit","voting","results"];
+let S=null,view="home",bview=null,pend=null,pendTitle="",sc=[],R=null,A=null,msg="";
+const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const medal=i=>["🥇","🥈","🥉"][i]||"#"+(i+1);
+async function api(url,body,form){
+  const o={credentials:"same-origin"};
+  if(form){o.method="POST";o.body=form}else if(body!==undefined){o.method="POST";o.headers={"Content-Type":"application/json"};o.body=JSON.stringify(body)}
+  const r=await fetch(url,o),j=await r.json().catch(()=>({}));
+  if(r.status===401&&url!=="/api/login"){S=null;login();throw new Error("login")}
+  if(!r.ok)throw new Error(j.error||"Something went wrong");return j;
+}
+const act=async fn=>{try{await fn();await load()}catch(e){if(e.message!=="login")alert(e.message)}};
+function login(err=""){
+  $("#rb").textContent="";
+  $("#app").innerHTML=`<div class="card"><h2>Log in</h2><input type="text" id="u" placeholder="Username" autocomplete="username" autocapitalize="none"><input type="password" id="p" placeholder="Password" autocomplete="current-password" style="width:100%;padding:11px 13px;border:1px solid var(--bd);border-radius:12px;background:var(--bg);color:var(--tx);margin:4px 0 10px"><button id="go">Log in</button><p class="mu" style="color:#d33">${esc(err)}</p></div>`;
+  const go=async()=>{try{await api("/api/login",{username:$("#u").value.trim(),password:$("#p").value});view="home";await load()}catch(e){login(e.message)}};
+  $("#go").onclick=go;$("#p").onkeydown=e=>{if(e.key==="Enter")go()};
+}
+async function load(){
+  try{
+    S=await api("/api/state");
+    if(view==="score"&&S.round?.phase==="voting")sc=await api("/api/score");
+    if(view==="board")R=await api("/api/results");
+    if(view==="admin"&&S.me.admin)A=await api("/api/admin");
+    render();
+  }catch(e){if(e.message!=="login")$("#app").innerHTML=`<div class="card">${esc(e.message)}</div>`}
+}
+function boardHtml(){
+  let h=`<h2 style="margin-top:16px">🏆 Leaderboard</h2>`;
+  if(!R||!R.rounds.length)return h+`<div class="card mu">🔒 Results appear when the admin reveals them at the end of a round.</div>`;
+  const ns=R.rounds.map(r=>r.n);if(bview===null||(bview!=="all"&&!ns.includes(bview)))bview=ns[ns.length-1];
+  h+=`<div class="tabs">${ns.map(n=>`<button class="alt ${bview===n?"on":""}" data-b="${n}">Round ${n}</button>`).join("")}${ns.length>1?`<button class="alt ${bview==="all"?"on":""}" data-b="all">Overall</button>`:""}</div>`;
+  const row=(i,t,sub,tot,a)=>`<div class="card"><div class="lb"><div class="rk">${medal(i)}</div><div class="t"><b>${esc(t)}</b><div class="mu">${esc(sub)}</div>${a?`<div class="chips">${a.map((x,k)=>`<span>${CATS[k][0]} ${x.toFixed(1)}</span>`).join("")}</div>`:""}</div><div class="sc">${tot.toFixed(1)}</div></div></div>`;
+  if(bview==="all")return h+R.overall.map((x,i)=>row(i,x.name,x.n+" round"+(x.n>1?"s":"")+" scored",x.tot)).join("")+`<p class="mu">Overall adds up each player’s round scores (50 per round max).</p>`;
+  return h+R.rounds.find(r=>r.n===bview).rows.map((x,i)=>row(i,x.title,x.name+(x.partner?" (duo with "+x.partner+")":""),x.tot,x.a)).join("")+`<p class="mu">Individual scores, averaged out of 10 per category. 50 is the max.</p>`;
+}
+function render(){
+  const app=$("#app"),r=S.round;app.className="";app.style.paddingTop="0";
+  $("#rb").textContent=r?`Round ${r.n} · ${PL[r.phase]}`:"";
+  let h=`<div class="row" style="justify-content:space-between;margin-top:14px">${view!=="home"?`<button class="alt" data-go="home">← Home</button>`:`<span class="mu">Hi <b>${esc(S.me.name)}</b></span>`}<span><button class="alt" data-go="pw">🔑</button> <button class="alt" id="out">Log out</button></span></div>`;
+  if(view==="home"){
+    h+=`<div class="card">`;
+    if(!r)h+=`<div class="note">${S.me.admin?"No round yet. Open the admin panel to create Round 1.":"The admin hasn’t started the first round yet."}</div>`;
+    else{
+      if(!r.active)h+=`<div class="note">🛋️ You’re sitting this round out. You can still follow the leaderboard.</div>`;
+      else if(r.phase==="setup")h+=`<div class="note">⏳ The admin is setting up this round’s duos.</div>`;
+      else h+=`<div class="note">🤝 Your duo partner: <b>${r.partner?esc(r.partner):"none (you’re flying solo)"}</b></div>`;
+      h+=`<div class="tiles" style="margin-top:14px"><button class="tile" data-go="submit" ${r.active&&r.phase==="submit"?"":"disabled"}><span>🎤</span><div>Submit your song<small>${r.mine?"Submitted ✓":r.phase==="submit"?"Upload your mp3":"Not open right now"}</small></div></button><button class="tile" data-go="score" ${r.active&&r.phase==="voting"?"":"disabled"}><span>🎧</span><div>Score songs<small>${r.phase==="voting"?"Songs are anonymous":"Opens when the admin reveals songs"}</small></div></button><button class="tile soft" data-go="board"><span>🏆</span><div>Leaderboard<small>Past round results</small></div></button></div>`;
+    }
+    if(S.me.admin)h+=`<button class="alt" data-go="admin" style="margin-top:14px;width:100%">⚙️ Admin panel</button>`;
+    h+=`</div>`;
+  }
+  if(view==="pw")h+=`<div class="card"><h2>🔑 Change password</h2><input type="text" id="pc" placeholder="Current password"><input type="text" id="pn" placeholder="New password (8+ characters)"><button id="pwsave">Change password</button></div>`;
+  if(view==="submit"&&r)h+=`<div class="card"><h2>🎤 Your song</h2>${r.partner?`<p class="mu">Duo partner: <b>${esc(r.partner)}</b></p>`:""}${r.mine?`<div class="note">✅ <b>${esc(r.mine.title)}</b> is in. Nobody else can hear it until the admin reveals songs.</div><audio controls preload="none" src="/audio/${r.mySongId}"></audio>`:""}<div id="drop"><div id="fileinfo">${pend?"🎧 "+esc(pend.name):"Drag and drop your mp3 here, or tap to choose"}</div><input type="file" id="file" accept=".mp3,audio/mpeg" hidden></div><input type="text" id="ttl" placeholder="Song title" value="${esc(pendTitle||r.mine?.title||"")}"><button id="save">${r.mine?"Replace song":"Submit song"}</button><p class="mu">${r.submitted} of ${r.players} songs submitted</p></div>`;
+  if(view==="score"){
+    h+=`<h2 style="margin-top:16px">🎧 Songs to score</h2>`;
+    if(!sc.length)h+=`<div class="card mu">No songs to score yet.</div>`;
+    sc.forEach((s,k)=>{const d=s.draft||s.score||CATS.map(()=>5);
+      h+=`<div class="card"><span class="letter">${s.label}</span><b>${esc(s.title)}</b><audio controls preload="none" src="/audio/${s.id}"></audio>${CATS.map(([e,c],i)=>`<div class="cat"><label>${e} ${c}</label><b>${d[i]}</b><input type="range" min="0" max="10" step="1" value="${d[i]}" data-k="${k}" data-i="${i}"></div>`).join("")}<div style="margin-top:14px"><button data-vote="${k}">${s.score?"Update my score":"Submit score"}</button> ${s.score?'<span class="mu">✓ scored</span>':""}</div></div>`});
+    h+=`<p class="mu">You can’t score your own or your duo partner’s song. ${sc.filter(s=>s.score).length} of ${sc.length} scored.</p>`;
+  }
+  if(view==="board")h+=boardHtml();
+  if(view==="admin"&&S.me.admin&&A)h+=adminHtml();
+  app.innerHTML=h;
+}
+function adminHtml(){
+  const rd=A.round,i=rd?PH.indexOf(rd.phase):-1,id=u=>rd?.players.find(p=>p.id===u.id)||{};
+  let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div></div>`;
+  if(rd)h+=`<div class="card"><h2>Duos</h2>${rd.duos.map(d=>`<div>🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"}</div>`).join("")||`<p class="mu">No duos yet.</p>`}${i<=1?`<button class="alt" data-shuffle="1" style="margin-top:10px">🎲 Shuffle duos</button><p class="mu">Avoids repeating past partners where it can.</p>`:""}</div>`;
+  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${p.song?"song ✓":"no song"}</span>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
+  h+=`<div class="card"><h2>Add a player</h2>${msg?`<div class="note">${msg}</div>`:""}<input type="text" id="nu" placeholder="Username (login)"><input type="text" id="nn" placeholder="Display name"><input type="text" id="np" placeholder="Password (blank = generate one)"><label class="mu"><input type="checkbox" id="na"> Make admin</label><div style="margin-top:10px"><button id="adduser">Create account</button></div></div>`;
+  return h;
+}
+document.addEventListener("click",e=>{
+  const b=e.target.closest("button");
+  if(e.target.closest("#drop")&&e.target.id!=="file"){$("#file").click();return}
+  if(!b)return;
+  if(b.dataset.go){view=b.dataset.go;msg="";load();window.scrollTo(0,0)}
+  else if(b.dataset.b){bview=b.dataset.b==="all"?"all":+b.dataset.b;render()}
+  else if(b.id==="out")act(async()=>{await api("/api/logout",{});S=null;login()});
+  else if(b.id==="pwsave")act(async()=>{await api("/api/password",{current:$("#pc").value,next:$("#pn").value});alert("Password changed");view="home"});
+  else if(b.id==="save")act(async()=>{
+    const title=$("#ttl").value.trim();if(!title)throw new Error("Add a song title");
+    if(!pend&&!S.round.mine)throw new Error("Drop in an mp3");
+    b.disabled=true;b.textContent="Uploading…";
+    let url;
+    if(pend){const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
+      const bl=await upload(`songs/r${S.round.n}-u${S.me.uid}.mp3`,pend,{access:"public",handleUploadUrl:"/api/upload",contentType:"audio/mpeg"});url=bl.url}
+    await api("/api/song",{title,url});pend=null;pendTitle="";view="home"});
+  else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
+  else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
+  else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
+  else if(b.dataset.shuffle)act(()=>api("/api/admin/shuffle",{}));
+  else if(b.dataset.reset)act(async()=>{const pw=prompt("New password (leave blank to generate one):","");if(pw===null)return;const r=await api(`/api/admin/user/${b.dataset.reset}/password`,{password:pw});prompt("Send them this new password:",r.password)});
+  else if(b.id==="adduser")act(async()=>{const r=await api("/api/admin/user",{username:$("#nu").value,name:$("#nn").value,password:$("#np").value,admin:$("#na").checked});msg=`Created. Send them: username <b>${esc(r.username)}</b> and password <b>${esc(r.password)}</b>`});
+});
+document.addEventListener("change",e=>{
+  if(e.target.id==="file")pick(e.target.files[0]);
+  if(e.target.dataset?.act)act(()=>api("/api/admin/player",{userId:+e.target.dataset.act,active:e.target.checked}));
+});
+document.addEventListener("input",e=>{
+  const x=e.target;if(x.id==="ttl"){pendTitle=x.value;return}
+  if(x.dataset?.k===undefined)return;const s=sc[+x.dataset.k];
+  s.draft=s.draft||(s.score||CATS.map(()=>5)).slice();s.draft[+x.dataset.i]=+x.value;x.closest(".cat").querySelector("b").textContent=x.value;
+});
+function pick(f){
+  if(!f)return;
+  if(!/\.mp3$/i.test(f.name)){alert("Please choose an mp3 file");return}
+  if(f.size>25*1024*1024){alert("That file is over 25 MB. Try a smaller export.");return}
+  pend=f;const i=$("#fileinfo");if(i)i.textContent="🎧 "+f.name;
+}
+document.addEventListener("dragover",e=>{if(e.target.closest("#drop")){e.preventDefault();$("#drop").classList.add("on")}});
+document.addEventListener("dragleave",e=>{if(e.target.closest("#drop"))$("#drop").classList.remove("on")});
+document.addEventListener("drop",e=>{if(e.target.closest("#drop")){e.preventDefault();$("#drop").classList.remove("on");pick(e.dataTransfer.files[0])}});
+window.addEventListener("dragover",e=>e.preventDefault());window.addEventListener("drop",e=>e.preventDefault());
+setInterval(()=>{const a=document.activeElement;if(S&&["home","admin","submit"].includes(view)&&!(a&&(a.tagName==="INPUT"||a.type==="range"))&&!pend)load()},15000);
+load();
+</script></body></html>
