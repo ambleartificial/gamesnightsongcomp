@@ -79,8 +79,8 @@ function teamsHtml(duos){
     <div class="team">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px">TEAM ${i+1}</div>
       <div class="circles">
-        <div class="circle" data-uid="${d.aId||''}">${d.aImg?`<img src="${esc(d.aImg)}">` : esc(d.a[0]||"?")}</div>
-        ${d.b?`<div class="circle" data-uid="${d.bId||''}">${d.bImg?`<img src="${esc(d.bImg)}">` : esc(d.b[0]||"?")}</div>`:""}
+        <div class="circle" data-uid="${d.aId}">${d.aImg?`<img src="${esc(d.aImg)}">` : esc((d.a||"?")[0])}</div>
+        ${d.b?`<div class="circle" data-uid="${d.bId}">${d.bImg?`<img src="${esc(d.bImg)}">` : esc((d.b||"?")[0])}</div>`:""}
       </div>
       <div style="font-size:12px;margin-top:2px">${esc(d.a)}${d.b?" + "+esc(d.b):""}</div>
       <div class="status ${d.submitted?"yes":"no"}">${d.submitted?"Submitted":"Not Submitted"}</div>
@@ -116,7 +116,7 @@ function render(){
   if(view==="board")h+=boardHtml();
   if(view==="admin"&&S.me.admin&&A)h+=adminHtml();
   app.innerHTML=h;
-  if(S.me.admin) setupImageDrops();
+  if(S && S.me && S.me.admin) setupImageDrops();
 }
 function setupImageDrops(){
   document.querySelectorAll(".circle").forEach(el=>{
@@ -128,10 +128,12 @@ function setupImageDrops(){
       if(!f || !f.type.startsWith("image/")) return alert("Drop an image");
       const uid=el.dataset.uid;
       if(!uid) return;
-      const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
-      const bl=await upload(`avatars/${uid}.jpg`,f,{access:"public",handleUploadUrl:"/api/upload",contentType:f.type});
-      await api("/api/image",{userId:+uid,url:bl.url});
-      load();
+      try{
+        const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
+        const bl=await upload(`avatars/${uid}.jpg`,f,{access:"public",handleUploadUrl:"/api/upload",contentType:f.type});
+        await api("/api/image",{userId:+uid,url:bl.url});
+        load();
+      }catch(err){alert(err.message||"Upload failed")}
     };
   });
 }
