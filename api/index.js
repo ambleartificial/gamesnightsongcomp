@@ -87,7 +87,7 @@ app.post('/api/password', auth, h(async (req, res) => {
 app.get('/api/state', auth, h(async (req, res) => {
   const me = req.user, r = await cur(), out = { me: { uid: me.id, name: me.name, admin: !!me.is_admin }, round: null };
   if (r) {
-    const [active, pid, mine, cnt, pl, d, duosRaw, songs, allUsers] = await Promise.all([
+    const [active, pid, mine, cnt, pl, d, duosRaw, songs, allUsers, activePlayers] = await Promise.all([
       isActive(r.id, me.id), partnerOf(r.id, me.id),
       one('SELECT id,title FROM songs WHERE round_id=$1 AND user_id=$2', [r.id, me.id]),
       one('SELECT COUNT(*)::int c FROM songs WHERE round_id=$1', [r.id]),
@@ -95,9 +95,11 @@ app.get('/api/state', auth, h(async (req, res) => {
       one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]),
       q('SELECT a,b,ord FROM duos WHERE round_id=$1 ORDER BY ord, a', [r.id]),
       q('SELECT user_id FROM songs WHERE round_id=$1', [r.id]),
-      q('SELECT id,name,image FROM users')
+      q('SELECT id,name,image FROM users'),
+      q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id])
     ]);
     const songUsers = new Set(songs.map(s => s.user_id));
+    const activeSet = new Set(activePlayers.map(p => p.user_id));
     const userMap = Object.fromEntries(allUsers.map(u => [u.id, u]));
     out.round = { 
       n: r.id, phase: r.phase, active, partner: await nameOf(pid), hasDuos: !!d, 
@@ -110,6 +112,7 @@ app.get('/api/state', auth, h(async (req, res) => {
         b: d.b ? (userMap[d.b]?.name || '?') : null,
         bImg: d.b ? (userMap[d.b]?.image || null) : null,
         bId: d.b,
+        participating: activeSet.has(d.a) || (d.b && activeSet.has(d.b)),
         submitted: songUsers.has(d.a) || (d.b && songUsers.has(d.b))
       }))
     };
@@ -255,10 +258,12 @@ app.post('/api/admin/user/:id/password', auth, adminOnly, h(async (req, res) => 
 }));
 app.post('/api/admin/player', auth, adminOnly, h(async (req, res) => {
   const r = await cur(), { userId, active } = req.body || {};
-  if (!r || r.phase !== 'setup') return err(res, 'You can only change players during setup');
+  if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'You can only change players during setup or submissions');
   if (active) await q('INSERT INTO round_players VALUES($1,$2) ON CONFLICT DO NOTHING', [r.id, userId]);
-  else await q('DELETE FROM round_players WHERE round_id=$1 AND user_id=$2', [r.id, userId]);
-  await q('DELETE FROM duos WHERE round_id=$1', [r.id]);
+  else {
+    await q('DELETE FROM round_players WHERE round_id=$1 AND user_id=$2', [r.id, userId]);
+    await q('DELETE FROM duos WHERE round_id=$1 AND (a=$2 OR b=$2)', [r.id, userId]);
+  }
   res.json({ ok: true });
 }));
 app.post('/api/admin/shuffle', auth, adminOnly, h(async (req, res) => {
