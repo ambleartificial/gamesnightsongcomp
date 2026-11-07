@@ -8,7 +8,7 @@ const SECRET = process.env.SECRET || process.env.DATABASE_URL || 'dev';
 
 const ready = (async () => {
   for (const s of [
-    `CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY, username TEXT NOT NULL, name TEXT NOT NULL, hash TEXT NOT NULL, is_admin INTEGER DEFAULT 0, image TEXT)`,
+    `CREATE TABLE IF NOT EXISTS users(id SERIAL PRIMARY KEY, username TEXT NOT NULL, name TEXT NOT NULL, hash TEXT NOT NULL, is_admin INTEGER DEFAULT 0)`,
     `CREATE UNIQUE INDEX IF NOT EXISTS users_username ON users(LOWER(username))`,
     `CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, user_id INTEGER NOT NULL, exp BIGINT NOT NULL)`,
     `CREATE TABLE IF NOT EXISTS rounds(id SERIAL PRIMARY KEY, phase TEXT NOT NULL DEFAULT 'setup')`,
@@ -85,30 +85,13 @@ app.post('/api/password', auth, h(async (req, res) => {
 app.get('/api/state', auth, h(async (req, res) => {
   const me = req.user, r = await cur(), out = { me: { uid: me.id, name: me.name, admin: !!me.is_admin }, round: null };
   if (r) {
-    const [active, pid, mine, cnt, pl, d, duosRaw, songs, users] = await Promise.all([
+    const [active, pid, mine, cnt, pl, d] = await Promise.all([
       isActive(r.id, me.id), partnerOf(r.id, me.id),
       one('SELECT id,title FROM songs WHERE round_id=$1 AND user_id=$2', [r.id, me.id]),
       one('SELECT COUNT(*)::int c FROM songs WHERE round_id=$1', [r.id]),
       one('SELECT COUNT(*)::int c FROM round_players WHERE round_id=$1', [r.id]),
-      one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]),
-      q('SELECT a,b FROM duos WHERE round_id=$1', [r.id]),
-      q('SELECT user_id FROM songs WHERE round_id=$1', [r.id]),
-      q('SELECT id,name,image FROM users')
-    ]);
-    const songUsers = new Set(songs.map(s => s.user_id));
-    const names = Object.fromEntries(users.map(u => [u.id, u]));
-    out.round = { 
-      n: r.id, phase: r.phase, active, partner: await nameOf(pid), hasDuos: !!d, 
-      mine: mine ? { title: mine.title } : null, mySongId: mine?.id || null, 
-      submitted: cnt.c, players: pl.c,
-      duos: duosRaw.map(d => ({
-        a: names[d.a]?.name || '?',
-        aImg: names[d.a]?.image || null,
-        b: d.b ? (names[d.b]?.name || '?') : null,
-        bImg: d.b ? (names[d.b]?.image || null) : null,
-        submitted: songUsers.has(d.a) || (d.b && songUsers.has(d.b))
-      }))
-    };
+      one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id])]);
+    out.round = { n: r.id, phase: r.phase, active, partner: await nameOf(pid), hasDuos: !!d, mine: mine ? { title: mine.title } : null, mySongId: mine?.id || null, submitted: cnt.c, players: pl.c };
   }
   res.json(out);
 }));
@@ -154,13 +137,6 @@ app.post('/api/song/delete', auth, h(async (req, res) => {
   if (!req.user.is_admin && !isOwner && !isPartner) return err(res, 'Not allowed', 403);
   await q('DELETE FROM songs WHERE id=$1', [song.id]);
   if (song.url) del(song.url).catch(() => {});
-  res.json({ ok: true });
-}));
-
-app.post('/api/image', auth, adminOnly, h(async (req, res) => {
-  const { userId, url } = req.body || {};
-  if (!userId || !url) return err(res, 'Missing data');
-  await q('UPDATE users SET image=$1 WHERE id=$2', [url, userId]);
   res.json({ ok: true });
 }));
 
