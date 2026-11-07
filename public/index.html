@@ -27,7 +27,7 @@ audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tab
 .teams{display:flex;flex-wrap:wrap;justify-content:center;gap:16px;margin:20px 0}
 .team{text-align:center;min-width:100px}
 .team .circles{display:flex;justify-content:center;gap:6px;margin:6px 0}
-.team .circle{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#ff5e7e,#ff9a3c);display:grid;place-items:center;color:#fff;font-weight:700;font-size:18px;border:3px solid #fff;box-shadow:0 0 0 2px #ff5e7e;overflow:hidden;cursor:pointer}
+.team .circle{width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#ff5e7e,#ff9a3c);display:grid;place-items:center;color:#fff;font-weight:700;font-size:18px;border:3px solid #fff;box-shadow:0 0 0 2px #ff5e7e;overflow:hidden}
 .team .circle img{width:100%;height:100%;object-fit:cover}
 .team .status{font-size:13px;font-weight:700;margin-top:4px}
 .status.yes{color:#16a34a}
@@ -79,8 +79,8 @@ function teamsHtml(duos){
     <div class="team">
       <div style="font-weight:800;font-size:14px;margin-bottom:4px">TEAM ${i+1}</div>
       <div class="circles">
-        <div class="circle" data-uid="${d.aId}">${d.aImg?`<img src="${esc(d.aImg)}">` : esc((d.a||"?")[0])}</div>
-        ${d.b?`<div class="circle" data-uid="${d.bId}">${d.bImg?`<img src="${esc(d.bImg)}">` : esc((d.b||"?")[0])}</div>`:""}
+        <div class="circle">${d.aImg?`<img src="${esc(d.aImg)}">` : esc((d.a||"?")[0])}</div>
+        ${d.b?`<div class="circle">${d.bImg?`<img src="${esc(d.bImg)}">` : esc((d.b||"?")[0])}</div>`:""}
       </div>
       <div style="font-size:12px;margin-top:2px">${esc(d.a)}${d.b?" + "+esc(d.b):""}</div>
       <div class="status ${d.submitted?"yes":"no"}">${d.submitted?"Submitted":"Not Submitted"}</div>
@@ -116,26 +116,6 @@ function render(){
   if(view==="board")h+=boardHtml();
   if(view==="admin"&&S.me.admin&&A)h+=adminHtml();
   app.innerHTML=h;
-  if(S && S.me && S.me.admin) setupImageDrops();
-}
-function setupImageDrops(){
-  document.querySelectorAll(".circle").forEach(el=>{
-    el.ondragover=e=>{e.preventDefault();el.style.outline="3px solid #ff9a3c"};
-    el.ondragleave=()=>el.style.outline="";
-    el.ondrop=async e=>{
-      e.preventDefault();el.style.outline="";
-      const f=e.dataTransfer.files[0];
-      if(!f || !f.type.startsWith("image/")) return alert("Drop an image");
-      const uid=el.dataset.uid;
-      if(!uid) return;
-      try{
-        const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
-        const bl=await upload(`avatars/${uid}.jpg`,f,{access:"public",handleUploadUrl:"/api/upload",contentType:f.type});
-        await api("/api/image",{userId:+uid,url:bl.url});
-        load();
-      }catch(err){alert(err.message||"Upload failed")}
-    };
-  });
 }
 function adminHtml(){
   const rd=A.round,i=rd?PH.indexOf(rd.phase):-1,id=u=>rd?.players.find(p=>p.id===u.id)||{};
@@ -159,7 +139,7 @@ function adminHtml(){
     }
     h+=`</div>`;
   }
-  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);const hasSong = duoHasSong(u.id);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${hasSong?"song ✓":"no song"}</span>`:""}${hasSong && p.songId?`<a href="/audio/${p.songId}" target="_blank" class="alt" style="padding:4px 10px;font-size:12px;text-decoration:none">Listen</a>`:""}${hasSong && i===1?`<button class="alt" data-delsong="${u.id}" style="padding:4px 10px;font-size:12px">Delete</button>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
+  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);const hasSong = duoHasSong(u.id);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${hasSong?"song ✓":"no song"}</span>`:""}${hasSong && p.songId?`<a href="/audio/${p.songId}" target="_blank" class="alt" style="padding:4px 10px;font-size:12px;text-decoration:none">Listen</a>`:""}${hasSong && i===1?`<button class="alt" data-delsong="${u.id}" style="padding:4px 10px;font-size:12px">Delete</button>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-photo="${u.id}" style="padding:4px 10px;font-size:12px">Upload photo</button><button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
   h+=`<div class="card"><h2>Add a player</h2>${msg?`<div class="note">${msg}</div>`:""}<input type="text" id="nu" placeholder="Username (login)"><input type="text" id="nn" placeholder="Display name"><input type="text" id="np" placeholder="Password (blank = generate one)"><label class="mu"><input type="checkbox" id="na"> Make admin</label><div style="margin-top:10px"><button id="adduser">Create account</button></div></div>`;
   return h;
 }
@@ -181,6 +161,20 @@ document.addEventListener("click",e=>{
     await api("/api/song",{title,url});pend=null;pendTitle="";view="home"});
   else if(b.id==="delsong")act(async()=>{if(!confirm("Delete your song?"))return;await api("/api/song/delete",{});view="home"});
   else if(b.dataset.delsong)act(async()=>{if(!confirm("Delete this song?"))return;await api("/api/song/delete",{userId:+b.dataset.delsong})});
+  else if(b.dataset.photo){
+    const input=document.createElement("input");
+    input.type="file";input.accept="image/*";
+    input.onchange=async()=>{
+      const f=input.files[0];if(!f)return;
+      try{
+        const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
+        const bl=await upload(`avatars/${b.dataset.photo}.jpg`,f,{access:"public",handleUploadUrl:"/api/upload",contentType:f.type});
+        await api("/api/image",{userId:+b.dataset.photo,url:bl.url});
+        load();
+      }catch(err){alert(err.message||"Upload failed")}
+    };
+    input.click();
+  }
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
   else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
   else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
