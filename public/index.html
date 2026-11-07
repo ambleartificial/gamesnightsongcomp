@@ -163,8 +163,25 @@ function showCrop(file, userId){
   document.getElementById("cancelcrop").onclick=()=>{box.remove();URL.revokeObjectURL(url)};
   document.getElementById("savecrop").onclick=async()=>{
     try{
+      const canvas=document.createElement("canvas");
+      const size=400;
+      canvas.width=canvas.height=size;
+      const ctx=canvas.getContext("2d");
+      const zoom=parseFloat(z.value);
+      const ox=parseFloat(mx.value)/100;
+      const oy=parseFloat(my.value)/100;
+      const imgEl=new Image();
+      imgEl.src=url;
+      await new Promise(r=>imgEl.onload=r);
+      const iw=imgEl.width, ih=imgEl.height;
+      const scale=Math.max(size/iw, size/ih)*zoom;
+      const dw=iw*scale, dh=ih*scale;
+      const dx=(size-dw)/2 + ox*size;
+      const dy=(size-dh)/2 + oy*size;
+      ctx.drawImage(imgEl, dx, dy, dw, dh);
+      const blob=await new Promise(r=>canvas.toBlob(r,"image/jpeg",0.9));
       const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
-      const bl=await upload(`avatars/${userId}.jpg`,file,{access:"public",handleUploadUrl:"/api/upload",contentType:file.type});
+      const bl=await upload(`avatars/${userId}.jpg`,blob,{access:"public",handleUploadUrl:"/api/upload",contentType:"image/jpeg"});
       await api("/api/image",{userId:+userId,url:bl.url});
       box.remove();URL.revokeObjectURL(url);load();
     }catch(e){alert(e.message||"Upload failed")}
