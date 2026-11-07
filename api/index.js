@@ -220,6 +220,25 @@ app.get('/api/results', auth, h(async (req, res) => {
   res.json({ rounds: rounds.map(r => ({ n: r.n, rows: r.rows.map(({ uid, ...x }) => x) })), overall: Object.values(t).sort((a, b) => b.tot - a.tot) });
 }));
 
+app.get('/api/archive', auth, h(async (req, res) => {
+  const rounds = await q("SELECT id FROM rounds WHERE phase='results' ORDER BY id DESC");
+  const names = Object.fromEntries((await q('SELECT id,name FROM users')).map(u => [u.id, u.name]));
+  const out = [];
+  for (const r of rounds) {
+    const songs = await q('SELECT s.id,s.title,s.user_id,s.url FROM songs s WHERE s.round_id=$1 ORDER BY s.id', [r.id]);
+    const duos = await q('SELECT a,b FROM duos WHERE round_id=$1', [r.id]);
+    out.push({
+      n: r.id,
+      songs: songs.map(s => {
+        const d = duos.find(d => d.a === s.user_id || d.b === s.user_id);
+        const partner = d ? (d.a === s.user_id ? d.b : d.a) : null;
+        return { id: s.id, title: s.title, name: names[s.user_id] || '?', partner: partner ? names[partner] : null };
+      })
+    });
+  }
+  res.json(out);
+}));
+
 app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
   const r = await cur(), users = await q('SELECT id,username,name,is_admin FROM users ORDER BY name');
   let round = null;
