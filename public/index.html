@@ -32,6 +32,7 @@ audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tab
 .team .status{font-size:13px;font-weight:700;margin-top:4px}
 .status.yes{color:#16a34a}
 .status.no{color:#dc2626}
+.status.out{color:#6b7280}
 .cropbox{position:fixed;inset:0;background:rgba(0,0,0,.7);display:grid;place-items:center;z-index:99}
 .cropbox .inner{background:var(--card);padding:20px;border-radius:16px;max-width:340px;width:90%;color:var(--tx)}
 .preview{width:120px;height:120px;border-radius:50%;overflow:hidden;margin:0 auto 12px;border:3px solid var(--a1);background:#000}
@@ -92,7 +93,7 @@ function teamsHtml(duos){
         ${d.b?`<div class="circle">${d.bImg?`<img src="${esc(d.bImg)}">` : esc((d.b||"?")[0])}</div>`:""}
       </div>
       <div style="font-size:12px;margin-top:2px">${esc(d.a)}${d.b?" + "+esc(d.b):""}</div>
-      <div class="status ${d.submitted?"yes":"no"}">${d.submitted?"Submitted":"Not Submitted"}</div>
+      <div class="status ${!d.participating?"out":d.submitted?"yes":"no"}">${!d.participating?"Not Participating":d.submitted?"Submitted":"Not Submitted"}</div>
     </div>
   `).join("")}</div>`;
 }
