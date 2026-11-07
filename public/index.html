@@ -82,7 +82,7 @@ function render(){
     h+=`</div>`;
   }
   if(view==="pw")h+=`<div class="card"><h2>🔑 Change password</h2><input type="text" id="pc" placeholder="Current password"><input type="text" id="pn" placeholder="New password (8+ characters)"><button id="pwsave">Change password</button></div>`;
-  if(view==="submit"&&r)h+=`<div class="card"><h2>🎤 Your song</h2>${r.partner?`<p class="mu">Duo partner: <b>${esc(r.partner)}</b></p>`:""}${r.mine?`<div class="note">✅ <b>${esc(r.mine.title)}</b> is in. Nobody else can hear it until the admin reveals songs.</div><audio controls preload="none" src="/audio/${r.mySongId}"></audio>`:""}<div id="drop"><div id="fileinfo">${pend?"🎧 "+esc(pend.name):"Drag and drop your mp3 here, or tap to choose"}</div><input type="file" id="file" accept=".mp3,audio/mpeg" hidden></div><input type="text" id="ttl" placeholder="Song title" value="${esc(pendTitle||r.mine?.title||"")}"><button id="save">${r.mine?"Replace song":"Submit song"}</button><p class="mu">${r.submitted} of ${r.players} songs submitted</p></div>`;
+  if(view==="submit"&&r)h+=`<div class="card"><h2>🎤 Your song</h2>${r.partner?`<p class="mu">Duo partner: <b>${esc(r.partner)}</b></p>`:""}${r.mine?`<div class="note">✅ <b>${esc(r.mine.title)}</b> is in. Nobody else can hear it until the admin reveals songs.</div><audio controls preload="none" src="/audio/${r.mySongId}"></audio><button class="alt" id="delsong" style="margin-top:8px">Delete song</button>`:""}<div id="drop"><div id="fileinfo">${pend?"🎧 "+esc(pend.name):"Drag and drop your mp3 here, or tap to choose"}</div><input type="file" id="file" accept=".mp3,audio/mpeg" hidden></div><input type="text" id="ttl" placeholder="Song title" value="${esc(pendTitle||r.mine?.title||"")}"><button id="save">${r.mine?"Replace song":"Submit song"}</button><p class="mu">${r.submitted} of ${r.players} songs submitted</p></div>`;
   if(view==="score"){
     h+=`<h2 style="margin-top:16px">🎧 Songs to score</h2>`;
     if(!sc.length)h+=`<div class="card mu">No songs to score yet.</div>`;
@@ -102,12 +102,6 @@ function adminHtml(){
     if (!d) return rd.players.find(p => p.id === uid)?.song;
     return rd.players.find(p => p.id === d.ai)?.song || (d.bi && rd.players.find(p => p.id === d.bi)?.song);
   };
-  const songIdFor = (uid) => {
-    if (!rd) return null;
-    const d = rd.duos.find(d => d.ai === uid || d.bi === uid);
-    const owner = d ? (rd.players.find(p => p.id === d.ai)?.song ? d.ai : d.bi) : uid;
-    return rd.players.find(p => p.id === owner)?.songId || null;
-  };
   let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div></div>`;
   if(rd){
     h+=`<div class="card"><h2>Duos</h2>`;
@@ -122,7 +116,7 @@ function adminHtml(){
     }
     h+=`</div>`;
   }
-  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);const hasSong = duoHasSong(u.id);const sid = songIdFor(u.id);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${hasSong?"song ✓":"no song"}</span>`:""}${hasSong && sid?`<a href="/audio/${sid}" target="_blank" class="alt" style="padding:4px 10px;font-size:12px;text-decoration:none">Listen</a>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
+  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);const hasSong = duoHasSong(u.id);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${hasSong?"song ✓":"no song"}</span>`:""}${hasSong && p.songId?`<a href="/audio/${p.songId}" target="_blank" class="alt" style="padding:4px 10px;font-size:12px;text-decoration:none">Listen</a>`:""}${hasSong && i===1?`<button class="alt" data-delsong="${u.id}" style="padding:4px 10px;font-size:12px">Delete</button>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
   h+=`<div class="card"><h2>Add a player</h2>${msg?`<div class="note">${msg}</div>`:""}<input type="text" id="nu" placeholder="Username (login)"><input type="text" id="nn" placeholder="Display name"><input type="text" id="np" placeholder="Password (blank = generate one)"><label class="mu"><input type="checkbox" id="na"> Make admin</label><div style="margin-top:10px"><button id="adduser">Create account</button></div></div>`;
   return h;
 }
@@ -142,6 +136,8 @@ document.addEventListener("click",e=>{
     if(pend){const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
       const bl=await upload(`songs/r${S.round.n}-u${S.me.uid}.mp3`,pend,{access:"public",handleUploadUrl:"/api/upload",contentType:"audio/mpeg"});url=bl.url}
     await api("/api/song",{title,url});pend=null;pendTitle="";view="home"});
+  else if(b.id==="delsong")act(async()=>{if(!confirm("Delete your song?"))return;await api("/api/song/delete",{});view="home"});
+  else if(b.dataset.delsong)act(async()=>{if(!confirm("Delete this song?"))return;await api("/api/song/delete",{userId:+b.dataset.delsong})});
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
   else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
   else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
