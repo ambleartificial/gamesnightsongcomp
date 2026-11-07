@@ -33,7 +33,7 @@ audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tab
 .status.yes{color:#16a34a}
 .status.no{color:#dc2626}
 .cropbox{position:fixed;inset:0;background:rgba(0,0,0,.7);display:grid;place-items:center;z-index:99}
-.cropbox .inner{background:var(--card);padding:20px;border-radius:16px;max-width:340px;width:90%}
+.cropbox .inner{background:var(--card);padding:20px;border-radius:16px;max-width:340px;width:90%;color:var(--tx)}
 .preview{width:120px;height:120px;border-radius:50%;overflow:hidden;margin:0 auto 12px;border:3px solid var(--a1);background:#000}
 .preview img{width:100%;height:100%;object-fit:cover}
 </style></head><body>
@@ -157,11 +157,11 @@ function showCrop(file, userId){
     <label class="mu">Move up/down <input type="range" id="my" min="-50" max="50" value="0"></label>
     <div class="row" style="margin-top:14px"><button id="savecrop">Save</button> <button class="alt" id="cancelcrop">Cancel</button></div></div>`;
   document.body.appendChild(box);
-  const img=$("#cimg"),z=$("#zoom"),mx=$("#mx"),my=$("#my");
+  const img=document.getElementById("cimg"),z=document.getElementById("zoom"),mx=document.getElementById("mx"),my=document.getElementById("my");
   const upd=()=>{img.style.transform=`scale(${z.value}) translate(${mx.value}%,${my.value}%)`};
   z.oninput=mx.oninput=my.oninput=upd;
-  $("#cancelcrop").onclick=()=>{box.remove();URL.revokeObjectURL(url)};
-  $("#savecrop").onclick=async()=>{
+  document.getElementById("cancelcrop").onclick=()=>{box.remove();URL.revokeObjectURL(url)};
+  document.getElementById("savecrop").onclick=async()=>{
     try{
       const {upload}=await import("https://esm.sh/@vercel/blob@0.27.0/client");
       const bl=await upload(`avatars/${userId}.jpg`,file,{access:"public",handleUploadUrl:"/api/upload",contentType:file.type});
@@ -190,8 +190,11 @@ document.addEventListener("click",e=>{
   else if(b.dataset.delsong)act(async()=>{if(!confirm("Delete this song?"))return;await api("/api/song/delete",{userId:+b.dataset.delsong})});
   else if(b.dataset.photo){
     const input=document.createElement("input");
-    input.type="file";input.accept="image/*";
-    input.onchange=()=>{if(input.files[0])showCrop(input.files[0],b.dataset.photo)};
+    input.type="file";
+    input.accept="image/*";
+    input.onchange=()=>{
+      if(input.files && input.files[0]) showCrop(input.files[0], b.dataset.photo);
+    };
     input.click();
   }
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
