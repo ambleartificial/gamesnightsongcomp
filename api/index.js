@@ -15,6 +15,7 @@ const ready = (async () => {
     `CREATE TABLE IF NOT EXISTS rounds(id SERIAL PRIMARY KEY, phase TEXT NOT NULL DEFAULT 'setup')`,
     `CREATE TABLE IF NOT EXISTS round_players(round_id INTEGER, user_id INTEGER, PRIMARY KEY(round_id, user_id))`,
     `CREATE TABLE IF NOT EXISTS duos(round_id INTEGER, a INTEGER, b INTEGER)`,
+    `ALTER TABLE duos ADD COLUMN IF NOT EXISTS ord INTEGER DEFAULT 0`,
     `CREATE TABLE IF NOT EXISTS songs(id SERIAL PRIMARY KEY, round_id INTEGER, user_id INTEGER, title TEXT, url TEXT, UNIQUE(round_id, user_id))`,
     `CREATE TABLE IF NOT EXISTS votes(song_id INTEGER, voter_id INTEGER, s TEXT NOT NULL, PRIMARY KEY(song_id, voter_id))`,
     `CREATE TABLE IF NOT EXISTS login_fails(k TEXT PRIMARY KEY, n INTEGER, t BIGINT)`,
@@ -92,7 +93,7 @@ app.get('/api/state', auth, h(async (req, res) => {
       one('SELECT COUNT(*)::int c FROM songs WHERE round_id=$1', [r.id]),
       one('SELECT COUNT(*)::int c FROM round_players WHERE round_id=$1', [r.id]),
       one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]),
-      q('SELECT a,b FROM duos WHERE round_id=$1', [r.id]),
+      q('SELECT a,b,ord FROM duos WHERE round_id=$1 ORDER BY ord, a', [r.id]),
       q('SELECT user_id FROM songs WHERE round_id=$1', [r.id]),
       q('SELECT id,name,image FROM users')
     ]);
@@ -221,7 +222,7 @@ app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
   let round = null;
   if (r) {
     const [pl, songs, duos, votes] = await Promise.all([
-      q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id]), ordered(r.id), q('SELECT a,b FROM duos WHERE round_id=$1', [r.id]),
+      q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id]), ordered(r.id), q('SELECT a,b,ord FROM duos WHERE round_id=$1 ORDER BY ord, a', [r.id]),
       q('SELECT v.song_id,v.voter_id FROM votes v JOIN songs s ON s.id=v.song_id WHERE s.round_id=$1', [r.id])]);
     const act = new Set(pl.map(x => x.user_id)), nm = Object.fromEntries(users.map(u => [u.id, u.name]));
     const pof = u => { const d = duos.find(d => d.a === u || d.b === u); return d ? (d.a === u ? d.b : d.a) : null; };
@@ -231,7 +232,7 @@ app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
         const list = r.phase === 'voting' ? songs.filter(s => s.user_id !== u.id && s.user_id !== pof(u.id)) : [];
         return { id: u.id, active: act.has(u.id), song: songs.some(s => s.user_id === u.id), songId: (songs.find(s => s.user_id === u.id) || {}).id || null, need: list.length, done: list.filter(s => votes.some(v => v.song_id === s.id && v.voter_id === u.id)).length };
       }),
-      duos: duos.map(d => ({ a: nm[d.a], b: d.b ? nm[d.b] : null, ai: d.a, bi: d.b })),
+      duos: duos.map(d => ({ a: nm[d.a], b: d.b ? nm[d.b] : null, ai: d.a, bi: d.b, ord: d.ord })),
     };
   }
   res.json({ users, round });
@@ -273,8 +274,8 @@ app.post('/api/admin/shuffle', auth, adminOnly, h(async (req, res) => {
     if (sc < bs) { bs = sc; best = duos; }
   }
   await q('DELETE FROM duos WHERE round_id=$1', [r.id]);
-  const vals = [], ph = best.map((d, i) => { vals.push(r.id, d.a, d.b); return `($${i * 3 + 1},$${i * 3 + 2},$${i * 3 + 3})`; });
-  await q('INSERT INTO duos VALUES ' + ph.join(','), vals);
+  const vals = [], ph = best.map((d, i) => { vals.push(r.id, d.a, d.b, i); return `($${i * 4 + 1},$${i * 4 + 2},$${i * 4 + 3},$${i * 4 + 4})`; });
+  await q('INSERT INTO duos(round_id,a,b,ord) VALUES ' + ph.join(','), vals);
   res.json({ ok: true });
 }));
 app.post('/api/admin/duo', auth, adminOnly, h(async (req, res) => {
@@ -284,13 +285,27 @@ app.post('/api/admin/duo', auth, adminOnly, h(async (req, res) => {
   const act = new Set((await q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id])).map(x => x.user_id));
   if (!act.has(a) || (b && !act.has(b))) return err(res, 'Both players must be ticked as playing');
   if (await one('SELECT 1 x FROM duos WHERE round_id=$1 AND (a=$2 OR b=$2 OR a=$3 OR b=$3)', [r.id, a, b || 0])) return err(res, 'One of them is already in a duo');
-  await q('INSERT INTO duos VALUES($1,$2,$3)', [r.id, a, b]);
+  const maxOrd = await one('SELECT COALESCE(MAX(ord),-1)+1 o FROM duos WHERE round_id=$1', [r.id]);
+  await q('INSERT INTO duos(round_id,a,b,ord) VALUES($1,$2,$3,$4)', [r.id, a, b, maxOrd.o]);
   res.json({ ok: true });
 }));
 app.post('/api/admin/duos/clear', auth, adminOnly, h(async (req, res) => {
   const r = await cur();
   if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
   await q('DELETE FROM duos WHERE round_id=$1', [r.id]); res.json({ ok: true });
+}));
+app.post('/api/admin/duo/move', auth, adminOnly, h(async (req, res) => {
+  const r = await cur(), { ai, dir } = req.body || {};
+  if (!r) return err(res, 'No round');
+  const all = await q('SELECT a,ord FROM duos WHERE round_id=$1 ORDER BY ord, a', [r.id]);
+  const idx = all.findIndex(d => d.a === +ai);
+  if (idx < 0) return err(res, 'Duo not found');
+  const swap = dir === 'up' ? idx - 1 : idx + 1;
+  if (swap < 0 || swap >= all.length) return res.json({ ok: true });
+  const a = all[idx], b = all[swap];
+  await q('UPDATE duos SET ord=$1 WHERE round_id=$2 AND a=$3', [b.ord, r.id, a.a]);
+  await q('UPDATE duos SET ord=$1 WHERE round_id=$2 AND a=$3', [a.ord, r.id, b.a]);
+  res.json({ ok: true });
 }));
 app.post('/api/admin/advance', auth, adminOnly, h(async (req, res) => {
   const r = await cur();
