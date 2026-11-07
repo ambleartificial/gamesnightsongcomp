@@ -53,7 +53,6 @@ app.use(h(async (req, res, next) => {
 const auth = (q, s, n) => q.user ? n() : err(s, 'Not logged in', 401);
 const adminOnly = (q, s, n) => q.user.is_admin ? n() : err(s, 'Admin only', 403);
 
-// ---------- auth ----------
 app.post('/api/login', h(async (req, res) => {
   const { username = '', password = '' } = req.body || {};
   const k = req.ip + '|' + String(username).toLowerCase(), f = await one('SELECT * FROM login_fails WHERE k=$1', [k]);
@@ -83,7 +82,6 @@ app.post('/api/password', auth, h(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// ---------- player ----------
 app.get('/api/state', auth, h(async (req, res) => {
   const me = req.user, r = await cur(), out = { me: { uid: me.id, name: me.name, admin: !!me.is_admin }, round: null };
   if (r) {
@@ -98,7 +96,6 @@ app.get('/api/state', auth, h(async (req, res) => {
   res.json(out);
 }));
 
-// Browser uploads the mp3 straight to Vercel Blob (avoids the 4.5 MB function limit).
 app.post('/api/upload', h(async (req, res) => {
   try {
     const json = await handleUpload({
@@ -130,7 +127,6 @@ app.post('/api/song', auth, h(async (req, res) => {
   res.json({ ok: true });
 }));
 
-// The file link is only handed out after a phase and permission check.
 app.get('/audio/:id', auth, h(async (req, res) => {
   const s = await one('SELECT * FROM songs WHERE id=$1', [+req.params.id]);
   if (!s) return err(res, 'Not found', 404);
@@ -176,7 +172,6 @@ app.get('/api/results', auth, h(async (req, res) => {
   res.json({ rounds: rounds.map(r => ({ n: r.n, rows: r.rows.map(({ uid, ...x }) => x) })), overall: Object.values(t).sort((a, b) => b.tot - a.tot) });
 }));
 
-// ---------- admin ----------
 app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
   const r = await cur(), users = await q('SELECT id,username,name,is_admin FROM users ORDER BY name');
   let round = null;
@@ -190,7 +185,8 @@ app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
       n: r.id, phase: r.phase,
       players: users.map(u => {
         const list = r.phase === 'voting' ? songs.filter(s => s.user_id !== u.id && s.user_id !== pof(u.id)) : [];
-         return { id: u.id, active: act.has(u.id), song: songs.some(s => s.user_id === u.id), need: list.length, done: list.filter(s => votes.some(v => v.song_id === s.id && v.voter_id === u.id)).length };
+        return { id: u.id, active: act.has(u.id), song: songs.some(s => s.user_id === u.id), songId: (songs.find(s => s.user_id === u.id) || {}).id || null, need: list.length, done: list.filter(s => votes.some(v => v.song_id === s.id && v.voter_id === u.id)).length };
+      }),
       duos: duos.map(d => ({ a: nm[d.a], b: d.b ? nm[d.b] : null, ai: d.a, bi: d.b })),
     };
   }
