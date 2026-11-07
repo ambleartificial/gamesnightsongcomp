@@ -313,6 +313,28 @@ app.post('/api/admin/duo/move', auth, adminOnly, h(async (req, res) => {
   }
   res.json({ ok: true });
 }));
+app.post('/api/admin/preview', auth, adminOnly, h(async (req, res) => {
+  const r = await cur();
+  if (!r) return err(res, 'No round');
+  const players = await q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id]);
+  if (players.length < 1) return err(res, 'Need at least one player ticked');
+  for (const p of players) {
+    const exists = await one('SELECT 1 x FROM songs WHERE round_id=$1 AND user_id=$2', [r.id, p.user_id]);
+    if (!exists) {
+      await q('INSERT INTO songs(round_id,user_id,title,url) VALUES($1,$2,$3,$4)', [r.id, p.user_id, 'Test Song ' + p.user_id, 'https://example.com/test.mp3']);
+    }
+  }
+  await q("UPDATE rounds SET phase='voting' WHERE id=$1", [r.id]);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/reset-test', auth, adminOnly, h(async (req, res) => {
+  const r = await cur();
+  if (!r) return err(res, 'No round');
+  await q("DELETE FROM votes WHERE song_id IN (SELECT id FROM songs WHERE round_id=$1 AND url='https://example.com/test.mp3')", [r.id]);
+  await q("DELETE FROM songs WHERE round_id=$1 AND url='https://example.com/test.mp3'", [r.id]);
+  await q("UPDATE rounds SET phase='submit' WHERE id=$1", [r.id]);
+  res.json({ ok: true });
+}));
 app.post('/api/admin/advance', auth, adminOnly, h(async (req, res) => {
   const r = await cur();
   const newRound = async from => {
