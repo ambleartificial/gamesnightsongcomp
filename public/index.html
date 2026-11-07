@@ -132,7 +132,11 @@ function adminHtml(){
   let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div></div>`;
   if(rd){
     h+=`<div class="card"><h2>Duos</h2>`;
-    h+=rd.duos.map(d=>`<div>🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"}</div>`).join("") || `<p class="mu">No duos yet.</p>`;
+    h+=rd.duos.map((d,idx)=>`<div class="row" style="align-items:center;margin:6px 0">
+      <span style="flex:1">🤝 ${esc(d.a)}${d.b?" + "+esc(d.b):" (solo)"}</span>
+      <button class="alt" data-move="${d.ai}" data-dir="up" style="padding:4px 8px;font-size:12px" ${idx===0?"disabled":""}>↑</button>
+      <button class="alt" data-move="${d.ai}" data-dir="down" style="padding:4px 8px;font-size:12px" ${idx===rd.duos.length-1?"disabled":""}>↓</button>
+    </div>`).join("") || `<p class="mu">No duos yet.</p>`;
     if(i<=1){
       h+=`<div style="margin-top:14px"><label class="mu">Manual pair</label>
         <select id="pa">${A.users.map(u=>`<option value="${u.id}">${esc(u.name)}</option>`).join("")}</select>
@@ -214,6 +218,7 @@ document.addEventListener("click",e=>{
     };
     input.click();
   }
+  else if(b.dataset.move)act(()=>api("/api/admin/duo/move",{ai:+b.dataset.move,dir:b.dataset.dir}));
   else if(b.dataset.vote)act(async()=>{const s=sc[+b.dataset.vote];await api("/api/vote",{songId:s.id,s:s.draft||s.score||CATS.map(()=>5)});sc=await api("/api/score")});
   else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
   else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
