@@ -136,6 +136,12 @@ document.addEventListener("click",e=>{
   else if(b.dataset.adv){const rd=A.round;if(rd&&rd.phase==="submit"&&!confirm("Reveal songs for voting? Everyone will be able to listen to every song."))return;if(rd&&rd.phase==="results"&&!confirm("Start Round "+(rd.n+1)+"? Round "+rd.n+" stays on the leaderboard."))return;act(()=>api("/api/admin/advance",{}))}
   else if(b.dataset.back)act(()=>api("/api/admin/back",{}));
   else if(b.dataset.shuffle)act(()=>api("/api/admin/shuffle",{}));
+   else if(b.id==="pair")act(async()=>{
+    const a=+document.getElementById("pa").value, b=document.getElementById("pb").value;
+    if(!a)throw new Error("Select a first player");
+    await api("/api/admin/duo",{a,b:b?+b:null});
+  });
+  else if(b.id==="clear")act(()=>api("/api/admin/duos/clear",{}));
   else if(b.dataset.reset)act(async()=>{const pw=prompt("New password (leave blank to generate one):","");if(pw===null)return;const r=await api(`/api/admin/user/${b.dataset.reset}/password`,{password:pw});prompt("Send them this new password:",r.password)});
   else if(b.id==="adduser")act(async()=>{const r=await api("/api/admin/user",{username:$("#nu").value,name:$("#nn").value,password:$("#np").value,admin:$("#na").checked});msg=`Created. Send them: username <b>${esc(r.username)}</b> and password <b>${esc(r.password)}</b>`});
 });
