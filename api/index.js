@@ -297,14 +297,17 @@ app.post('/api/admin/duos/clear', auth, adminOnly, h(async (req, res) => {
 app.post('/api/admin/duo/move', auth, adminOnly, h(async (req, res) => {
   const r = await cur(), { ai, dir } = req.body || {};
   if (!r) return err(res, 'No round');
-  const all = await q('SELECT a,ord FROM duos WHERE round_id=$1 ORDER BY ord, a', [r.id]);
+  const all = await q('SELECT a FROM duos WHERE round_id=$1 ORDER BY ord, a', [r.id]);
   const idx = all.findIndex(d => d.a === +ai);
   if (idx < 0) return err(res, 'Duo not found');
   const swap = dir === 'up' ? idx - 1 : idx + 1;
   if (swap < 0 || swap >= all.length) return res.json({ ok: true });
-  const a = all[idx], b = all[swap];
-  await q('UPDATE duos SET ord=$1 WHERE round_id=$2 AND a=$3', [b.ord, r.id, a.a]);
-  await q('UPDATE duos SET ord=$1 WHERE round_id=$2 AND a=$3', [a.ord, r.id, b.a]);
+  const temp = all[idx];
+  all[idx] = all[swap];
+  all[swap] = temp;
+  for (let i = 0; i < all.length; i++) {
+    await q('UPDATE duos SET ord=$1 WHERE round_id=$2 AND a=$3', [i, r.id, all[i].a]);
+  }
   res.json({ ok: true });
 }));
 app.post('/api/admin/advance', auth, adminOnly, h(async (req, res) => {
