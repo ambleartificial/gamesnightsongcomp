@@ -18,10 +18,11 @@ const ready = (async () => {
     `CREATE TABLE IF NOT EXISTS votes(song_id INTEGER, voter_id INTEGER, s TEXT NOT NULL, PRIMARY KEY(song_id, voter_id))`,
     `CREATE TABLE IF NOT EXISTS login_fails(k TEXT PRIMARY KEY, n INTEGER, t BIGINT)`,
   ]) await q(s);
-  // First-run admin: set ADMIN_USER / ADMIN_PASS in Vercel env vars
-  if ((await one('SELECT COUNT(*)::int c FROM users')).c === 0 && process.env.ADMIN_USER && process.env.ADMIN_PASS)
-    await q('INSERT INTO users(username,name,hash,is_admin) VALUES($1,$2,$3,1)', [process.env.ADMIN_USER, process.env.ADMIN_NAME || 'Admin', bcrypt.hashSync(process.env.ADMIN_PASS, 10)]);
-})();
+   if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
+     const u = process.env.ADMIN_USER.trim(), hash = bcrypt.hashSync(process.env.ADMIN_PASS.trim(), 10);
+     if (await one('SELECT 1 x FROM users WHERE LOWER(username)=LOWER($1)', [u])) await q('UPDATE users SET hash=$1, is_admin=1 WHERE LOWER(username)=LOWER($2)', [hash, u]);
+     else await q('INSERT INTO users(username,name,hash,is_admin) VALUES($1,$2,$3,1)', [u, process.env.ADMIN_NAME || 'Admin', hash]);
+   }
 ready.catch(console.error);
 
 const app = express();
