@@ -190,7 +190,7 @@ app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
       n: r.id, phase: r.phase,
       players: users.map(u => {
         const list = r.phase === 'voting' ? songs.filter(s => s.user_id !== u.id && s.user_id !== pof(u.id)) : [];
-         return { id: u.id, active: act.has(u.id), song: songs.some(s => s.user_id === u.id), songId: (songs.find(s => s.user_id === u.id) || {}).id || null, need: list.length, done: list.filter(s => votes.some(v => v.song_id === s.id && v.voter_id === u.id)).length };
+         return { id: u.id, active: act.has(u.id), song: songs.some(s => s.user_id === u.id), need: list.length, done: list.filter(s => votes.some(v => v.song_id === s.id && v.voter_id === u.id)).length };
       duos: duos.map(d => ({ a: nm[d.a], b: d.b ? nm[d.b] : null, ai: d.a, bi: d.b })),
     };
   }
