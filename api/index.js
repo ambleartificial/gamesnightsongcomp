@@ -85,13 +85,27 @@ app.post('/api/password', auth, h(async (req, res) => {
 app.get('/api/state', auth, h(async (req, res) => {
   const me = req.user, r = await cur(), out = { me: { uid: me.id, name: me.name, admin: !!me.is_admin }, round: null };
   if (r) {
-    const [active, pid, mine, cnt, pl, d] = await Promise.all([
+    const [active, pid, mine, cnt, pl, d, duosRaw, songs] = await Promise.all([
       isActive(r.id, me.id), partnerOf(r.id, me.id),
       one('SELECT id,title FROM songs WHERE round_id=$1 AND user_id=$2', [r.id, me.id]),
       one('SELECT COUNT(*)::int c FROM songs WHERE round_id=$1', [r.id]),
       one('SELECT COUNT(*)::int c FROM round_players WHERE round_id=$1', [r.id]),
-      one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id])]);
-    out.round = { n: r.id, phase: r.phase, active, partner: await nameOf(pid), hasDuos: !!d, mine: mine ? { title: mine.title } : null, mySongId: mine?.id || null, submitted: cnt.c, players: pl.c };
+      one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]),
+      q('SELECT a,b FROM duos WHERE round_id=$1', [r.id]),
+      q('SELECT user_id FROM songs WHERE round_id=$1', [r.id])
+    ]);
+    const songUsers = new Set(songs.map(s => s.user_id));
+    const names = Object.fromEntries((await q('SELECT id,name FROM users')).map(u => [u.id, u.name]));
+    out.round = { 
+      n: r.id, phase: r.phase, active, partner: await nameOf(pid), hasDuos: !!d, 
+      mine: mine ? { title: mine.title } : null, mySongId: mine?.id || null, 
+      submitted: cnt.c, players: pl.c,
+      duos: duosRaw.map(d => ({
+        a: names[d.a] || '?',
+        b: d.b ? (names[d.b] || '?') : null,
+        submitted: songUsers.has(d.a) || (d.b && songUsers.has(d.b))
+      }))
+    };
   }
   res.json(out);
 }));
