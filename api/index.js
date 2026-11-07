@@ -135,7 +135,7 @@ app.get('/audio/:id', auth, h(async (req, res) => {
   const s = await one('SELECT * FROM songs WHERE id=$1', [+req.params.id]);
   if (!s) return err(res, 'Not found', 404);
   const r = await one('SELECT * FROM rounds WHERE id=$1', [s.round_id]), me = req.user.id;
-  const ok = s.user_id === me || r.phase === 'results' || (r.phase === 'voting' && (await isActive(r.id, me)) && (await partnerOf(r.id, me)) !== s.user_id);
+  const ok = req.user.is_admin || s.user_id === me || r.phase === 'results' || (r.phase === 'voting' && (await isActive(r.id, me)) && (await partnerOf(r.id, me)) !== s.user_id);
   if (!ok) return err(res, 'Not available', 403);
   res.set('Cache-Control', 'private, no-store'); res.redirect(302, s.url);
 }));
