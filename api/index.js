@@ -18,11 +18,12 @@ const ready = (async () => {
     `CREATE TABLE IF NOT EXISTS votes(song_id INTEGER, voter_id INTEGER, s TEXT NOT NULL, PRIMARY KEY(song_id, voter_id))`,
     `CREATE TABLE IF NOT EXISTS login_fails(k TEXT PRIMARY KEY, n INTEGER, t BIGINT)`,
   ]) await q(s);
-   if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
-     const u = process.env.ADMIN_USER.trim(), hash = bcrypt.hashSync(process.env.ADMIN_PASS.trim(), 10);
-     if (await one('SELECT 1 x FROM users WHERE LOWER(username)=LOWER($1)', [u])) await q('UPDATE users SET hash=$1, is_admin=1 WHERE LOWER(username)=LOWER($2)', [hash, u]);
-     else await q('INSERT INTO users(username,name,hash,is_admin) VALUES($1,$2,$3,1)', [u, process.env.ADMIN_NAME || 'Admin', hash]);
-   }
+  if (process.env.ADMIN_USER && process.env.ADMIN_PASS) {
+    const u = process.env.ADMIN_USER.trim(), hash = bcrypt.hashSync(process.env.ADMIN_PASS.trim(), 10);
+    if (await one('SELECT 1 x FROM users WHERE LOWER(username)=LOWER($1)', [u])) await q('UPDATE users SET hash=$1, is_admin=1 WHERE LOWER(username)=LOWER($2)', [hash, u]);
+    else await q('INSERT INTO users(username,name,hash,is_admin) VALUES($1,$2,$3,1)', [u, process.env.ADMIN_NAME || 'Admin', hash]);
+  }
+})();
 ready.catch(console.error);
 
 const app = express();
@@ -191,7 +192,7 @@ app.get('/api/admin', auth, adminOnly, h(async (req, res) => {
         const list = r.phase === 'voting' ? songs.filter(s => s.user_id !== u.id && s.user_id !== pof(u.id)) : [];
         return { id: u.id, active: act.has(u.id), song: songs.some(s => s.user_id === u.id), need: list.length, done: list.filter(s => votes.some(v => v.song_id === s.id && v.voter_id === u.id)).length };
       }),
-      duos: duos.map(d => ({ a: nm[d.a], b: d.b ? nm[d.b] : null })),
+      duos: duos.map(d => ({ a: nm[d.a], b: d.b ? nm[d.b] : null, ai: d.a, bi: d.b })),
     };
   }
   res.json({ users, round });
@@ -237,6 +238,21 @@ app.post('/api/admin/shuffle', auth, adminOnly, h(async (req, res) => {
   await q('INSERT INTO duos VALUES ' + ph.join(','), vals);
   res.json({ ok: true });
 }));
+app.post('/api/admin/duo', auth, adminOnly, h(async (req, res) => {
+  const r = await cur(), a = +req.body?.a, b = req.body?.b ? +req.body.b : null;
+  if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
+  if (!a || a === b) return err(res, 'Pick two different players');
+  const act = new Set((await q('SELECT user_id FROM round_players WHERE round_id=$1', [r.id])).map(x => x.user_id));
+  if (!act.has(a) || (b && !act.has(b))) return err(res, 'Both players must be ticked as playing');
+  if (await one('SELECT 1 x FROM duos WHERE round_id=$1 AND (a=$2 OR b=$2 OR a=$3 OR b=$3)', [r.id, a, b || 0])) return err(res, 'One of them is already in a duo');
+  await q('INSERT INTO duos VALUES($1,$2,$3)', [r.id, a, b]);
+  res.json({ ok: true });
+}));
+app.post('/api/admin/duos/clear', auth, adminOnly, h(async (req, res) => {
+  const r = await cur();
+  if (!r || !['setup', 'submit'].includes(r.phase)) return err(res, 'Duos can only change before voting');
+  await q('DELETE FROM duos WHERE round_id=$1', [r.id]); res.json({ ok: true });
+}));
 app.post('/api/admin/advance', auth, adminOnly, h(async (req, res) => {
   const r = await cur();
   const newRound = async from => {
@@ -245,7 +261,10 @@ app.post('/api/admin/advance', auth, adminOnly, h(async (req, res) => {
     else await q('INSERT INTO round_players SELECT $1::int,id FROM users', [id]);
   };
   if (!r) { await newRound(null); return res.json({ ok: true }); }
-  if (r.phase === 'setup' && !(await one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]))) return err(res, 'Shuffle duos first');
+  if (r.phase === 'setup') {
+    const unpaired = await one('SELECT 1 x FROM round_players p WHERE p.round_id=$1 AND NOT EXISTS (SELECT 1 FROM duos d WHERE d.round_id=$1 AND (d.a=p.user_id OR d.b=p.user_id))', [r.id]);
+    if (unpaired || !(await one('SELECT 1 x FROM duos WHERE round_id=$1', [r.id]))) return err(res, 'Every player needs a duo first. Pair them up or shuffle.');
+  }
   if (r.phase === 'submit' && !(await one('SELECT 1 x FROM songs WHERE round_id=$1', [r.id]))) return err(res, 'No songs have been submitted yet');
   const next = { setup: 'submit', submit: 'voting', voting: 'results' }[r.phase];
   if (next) await q('UPDATE rounds SET phase=$1 WHERE id=$2', [next, r.id]); else await newRound(r.id);
