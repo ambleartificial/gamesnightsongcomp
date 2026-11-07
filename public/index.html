@@ -48,7 +48,7 @@ audio{width:100%;margin:10px 0 2px}.row{display:flex;gap:8px;flex-wrap:wrap}.tab
 <script>
 const CATS=[["🎤","Vocals"],["🤝","Chemistry"],["💡","Creativity"],["🔥","Playlist worthy"],["✍️","Songwriting"]];
 const PL={setup:"Setting up",submit:"Submissions open",voting:"Voting",results:"Results"},PH=["setup","submit","voting","results"];
-let S=null,view="home",bview=null,pend=null,pendTitle="",sc=[],R=null,A=null,msg="";
+let S=null,view="home",bview=null,pend=null,pendTitle="",sc=[],R=null,A=null,msg="",ARC=null;
 const $=s=>document.querySelector(s),esc=t=>String(t??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const medal=i=>["🥇","🥈","🥉"][i]||"#"+(i+1);
 async function api(url,body,form){
@@ -70,6 +70,7 @@ async function load(){
     S=await api("/api/state");
     if(view==="score"&&S.round?.phase==="voting")sc=await api("/api/score");
     if(view==="board")R=await api("/api/results");
+    if(view==="archive")ARC=await api("/api/archive");
     if(view==="admin"&&S.me.admin)A=await api("/api/admin");
     render();
   }catch(e){if(e.message!=="login")$("#app").innerHTML=`<div class="card">${esc(e.message)}</div>`}
@@ -82,6 +83,18 @@ function boardHtml(){
   const row=(i,t,sub,tot,a)=>`<div class="card"><div class="lb"><div class="rk">${medal(i)}</div><div class="t"><b>${esc(t)}</b><div class="mu">${esc(sub)}</div>${a?`<div class="chips">${a.map((x,k)=>`<span>${CATS[k][0]} ${x.toFixed(1)}</span>`).join("")}</div>`:""}</div><div class="sc">${tot.toFixed(1)}</div></div></div>`;
   if(bview==="all")return h+R.overall.map((x,i)=>row(i,x.name,x.n+" round"+(x.n>1?"s":"")+" scored",x.tot)).join("")+`<p class="mu">Overall adds up each player’s round scores (50 per round max).</p>`;
   return h+R.rounds.find(r=>r.n===bview).rows.map((x,i)=>row(i,x.title,x.name+(x.partner?" (duo with "+x.partner+")":""),x.tot,x.a)).join("")+`<p class="mu">Individual scores, averaged out of 10 per category. 50 is the max.</p>`;
+}
+function archiveHtml(){
+  if(!ARC||!ARC.length)return `<h2 style="margin-top:16px">Past Rounds</h2><div class="card mu">No finished rounds yet.</div>`;
+  let h=`<h2 style="margin-top:16px">Past Rounds</h2>`;
+  ARC.forEach(r=>{
+    h+=`<div class="card"><h2>Round ${r.n}</h2>`;
+    r.songs.forEach(s=>{
+      h+=`<div style="margin:12px 0;padding-bottom:12px;border-bottom:1px solid var(--bd)"><b>${esc(s.title)}</b><div class="mu">${esc(s.name)}${s.partner?" + "+esc(s.partner):""}</div><audio controls preload="none" src="/audio/${s.id}"></audio></div>`;
+    });
+    h+=`</div>`;
+  });
+  return h;
 }
 function teamsHtml(duos){
   if(!duos || !duos.length) return "";
@@ -109,7 +122,7 @@ function render(){
       if(!r.active)h+=`<div class="note">🛋️ You’re sitting this round out. You can still follow the leaderboard.</div>`;
       else if(r.phase==="setup")h+=`<div class="note">⏳ The admin is setting up this round’s duos.</div>`;
       else h+=`<div class="note">🤝 Your duo partner: <b>${r.partner?esc(r.partner):"none (you’re flying solo)"}</b></div>`;
-      h+=`<div class="tiles" style="margin-top:14px"><button class="tile" data-go="submit" ${r.active&&r.phase==="submit"?"":"disabled"}><span>🎤</span><div>Submit your song<small>${r.mine?"Submitted ✓":r.phase==="submit"?"Upload your mp3":"Not open right now"}</small></div></button><button class="tile" data-go="score" ${r.active&&r.phase==="voting"?"":"disabled"}><span>🎧</span><div>Score songs<small>${r.phase==="voting"?"Songs are anonymous":"Opens when the admin reveals songs"}</small></div></button><button class="tile soft" data-go="board"><span>🏆</span><div>Leaderboard<small>Check the scores!</small></div></button></div>`;
+      h+=`<div class="tiles" style="margin-top:14px"><button class="tile" data-go="submit" ${r.active&&r.phase==="submit"?"":"disabled"}><span>🎤</span><div>Submit your song<small>${r.mine?"Submitted ✓":r.phase==="submit"?"Upload your mp3":"Not open right now"}</small></div></button><button class="tile" data-go="score" ${r.active&&r.phase==="voting"?"":"disabled"}><span>🎧</span><div>Score songs<small>${r.phase==="voting"?"Songs are anonymous":"Opens when the admin reveals songs"}</small></div></button><button class="tile soft" data-go="board"><span>🏆</span><div>Leaderboard<small>CHECK THE STATS</small></div></button><button class="tile soft" data-go="archive"><span>📼</span><div>Past Rounds<small>Listen back to finished rounds</small></div></button></div>`;
     }
     if(S.me.admin)h+=`<button class="alt" data-go="admin" style="margin-top:14px;width:100%">⚙️ Admin panel</button>`;
     h+=`</div>`;
@@ -124,6 +137,7 @@ function render(){
     h+=`<p class="mu">You can’t score your own or your duo partner’s song. ${sc.filter(s=>s.score).length} of ${sc.length} scored.</p>`;
   }
   if(view==="board")h+=boardHtml();
+  if(view==="archive")h+=archiveHtml();
   if(view==="admin"&&S.me.admin&&A)h+=adminHtml();
   app.innerHTML=h;
 }
