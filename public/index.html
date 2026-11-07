@@ -96,6 +96,18 @@ function render(){
 }
 function adminHtml(){
   const rd=A.round,i=rd?PH.indexOf(rd.phase):-1,id=u=>rd?.players.find(p=>p.id===u.id)||{};
+  const duoHasSong = (uid) => {
+    if (!rd) return false;
+    const d = rd.duos.find(d => d.ai === uid || d.bi === uid);
+    if (!d) return rd.players.find(p => p.id === uid)?.song;
+    return rd.players.find(p => p.id === d.ai)?.song || (d.bi && rd.players.find(p => p.id === d.bi)?.song);
+  };
+  const songIdFor = (uid) => {
+    if (!rd) return null;
+    const d = rd.duos.find(d => d.ai === uid || d.bi === uid);
+    const owner = d ? (rd.players.find(p => p.id === d.ai)?.song ? d.ai : d.bi) : uid;
+    return rd.players.find(p => p.id === owner)?.songId || null;
+  };
   let h=`<div class="card"><h2>⚙️ ${rd?`Round ${rd.n}: ${PL[rd.phase]}`:"No round yet"}</h2><div class="row"><button data-adv="1">${rd?["Open submissions","Reveal songs and open voting","Reveal results",`Start Round ${rd.n+1}`][i]:"Create Round 1"}</button>${i>0?`<button class="alt" data-back="1">↩ Previous phase</button>`:""}</div></div>`;
   if(rd){
     h+=`<div class="card"><h2>Duos</h2>`;
@@ -110,7 +122,7 @@ function adminHtml(){
     }
     h+=`</div>`;
   }
-  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${p.song?"song ✓":"no song"}</span>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
+  h+=`<div class="card"><h2>Players</h2>${rd&&i===0?`<p class="mu">Tick who is playing this round.</p>`:""}${A.users.map(u=>{const p=id(u);const hasSong = duoHasSong(u.id);const sid = songIdFor(u.id);return `<div class="row" style="align-items:center;margin:8px 0">${rd?`<input type="checkbox" data-act="${u.id}" ${p.active?"checked":""} ${i>0?"disabled":""}>`:""}<span style="flex:1"><b>${esc(u.name)}</b> <span class="mu">${esc(u.username)}${u.is_admin?" · admin":""}</span></span>${p.active&&i>=1?`<span class="tag">${hasSong?"song ✓":"no song"}</span>`:""}${hasSong && sid?`<a href="/audio/${sid}" target="_blank" class="alt" style="padding:4px 10px;font-size:12px;text-decoration:none">Listen</a>`:""}${p.active&&i===2?`<span class="tag">${p.done}/${p.need} scored</span>`:""}<button class="alt" data-reset="${u.id}" style="padding:4px 10px;font-size:12px">Reset password</button></div>`}).join("")}</div>`;
   h+=`<div class="card"><h2>Add a player</h2>${msg?`<div class="note">${msg}</div>`:""}<input type="text" id="nu" placeholder="Username (login)"><input type="text" id="nn" placeholder="Display name"><input type="text" id="np" placeholder="Password (blank = generate one)"><label class="mu"><input type="checkbox" id="na"> Make admin</label><div style="margin-top:10px"><button id="adduser">Create account</button></div></div>`;
   return h;
 }
